@@ -1,0 +1,43 @@
+name: suara_kita  # <-- PASTIKAN INI SUDAH DIGANTI
+description: "Aplikasi E-Voting Mahasiswa USU"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0' # Sesuaikan dengan versi SDK kamu
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Tambahkan ini:
+  google_fonts: ^6.2.1 # Untuk font Almarai & Unbounded
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Ini adalah tempat kamu mendaftarkan ASET (Gambar, Animasi, Font)
+  # JANGAN LUPA BUAT FOLDER 'assets'
+  assets:
+    - assets/images/backgrounds/
+    - assets/images/logos/
+    - assets/animations/
+
+  # Ini adalah cara mendaftarkan font Almarai
+  fonts:
+    - family: Almarai
+      fonts:
+        - asset: assets/fonts/Almarai-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Almarai-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Almarai-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Almarai-ExtraBold.ttf
+          weight: 800
