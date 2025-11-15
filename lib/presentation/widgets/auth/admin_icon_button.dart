@@ -7,14 +7,13 @@ class AdminIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: () {
-        // TODO: Nanti kita isi navigasi ke Admin Login Page
-        print('Admin icon pressed');
+        // TODO: Nanti kita buat AdminLoginPage
+        print('Admin icon pressed - akan navigasi ke Admin Login');
       },
-      // INI PERBAIKANNYA: Ikon yang benar untuk "Shield Person"
       icon: const Icon(
-        Icons.admin_panel_settings, // BUKAN shield_person
-        size: 32, // Sedikit lebih besar
-        color: Colors.white, // Putih agar terlihat di background hijau
+        Icons.admin_panel_settings,
+        size: 32,
+        color: Colors.white,
       ),
       tooltip: 'Login sebagai Admin',
     );

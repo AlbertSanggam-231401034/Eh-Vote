@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-// Import widget ikon admin yang sudah kita perbaiki
 import 'package:suara_kita/presentation/widgets/auth/admin_icon_button.dart';
 
 class WelcomePage extends StatelessWidget {
@@ -8,29 +7,23 @@ class WelcomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Warna hijau utama (titik awal gradasi)
+    // Warna gradasi (Sama seperti Splash & Login)
     const Color kPrimaryGreen = Color(0xFF00C64F);
-    // Warna hijau sangat gelap (titik akhir gradasi)
     const Color kDarkGreen = Color(0xFF002D12);
 
     return Scaffold(
-      // 1. HAPUS 'backgroundColor' DARI SCAFFOLD
-
-      // 2. BUNGKUS 'Stack' DENGAN 'Container' UNTUK GRADASI
+      // 1. KEMBALIKAN GRADASI (FIX DESAIN)
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              kPrimaryGreen, // Mulai dari Hijau Cerah
-              kDarkGreen,    // Berakhir di Hijau Sangat Gelap
-            ],
-            begin: Alignment.topCenter, // Mulai dari atas
-            end: Alignment.bottomCenter,  // Selesai di bawah
+            colors: [kPrimaryGreen, kDarkGreen],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
         ),
         child: Stack(
           children: [
-            // Konten Utama (Tidak berubah sama sekali)
+            // Konten Utama
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: Column(
@@ -39,7 +32,7 @@ class WelcomePage extends StatelessWidget {
                 children: [
                   const Spacer(flex: 2),
                   const Icon(
-                    Icons.how_to_vote_outlined,
+                    Icons.how_to_vote,
                     size: 100,
                     color: Colors.white,
                   ),
@@ -64,14 +57,16 @@ class WelcomePage extends StatelessWidget {
                     ),
                   ),
                   const Spacer(flex: 2),
+
+                  // 2. PERBAIKI NAVIGASI SIGN UP (FIX NAVIGASI)
                   ElevatedButton(
                     onPressed: () {
-                      // TODO: Navigasi ke Halaman Sign Up
-                      print('Sign Up pressed');
+                      // Gunakan NAVIGATOR.PUSHNAMED
+                      Navigator.pushNamed(context, '/signup');
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      foregroundColor: kPrimaryGreen, // Teks Hijau
+                      foregroundColor: kPrimaryGreen,
                       minimumSize: const Size(double.infinity, 55),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
@@ -86,10 +81,12 @@ class WelcomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // 3. PERBAIKI NAVIGASI LOG IN (FIX NAVIGASI)
                   OutlinedButton(
                     onPressed: () {
-                      // TODO: Navigasi ke Halaman Login
-                      print('Log In pressed');
+                      // Gunakan NAVIGATOR.PUSHNAMED
+                      Navigator.pushNamed(context, '/login');
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
@@ -112,7 +109,7 @@ class WelcomePage extends StatelessWidget {
               ),
             ),
 
-            // Ikon Admin (Tidak berubah)
+            // Ikon Admin
             const Positioned(
               top: 50,
               right: 20,
