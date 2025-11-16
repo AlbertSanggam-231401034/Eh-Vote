@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:suara_kita/services/firebase_service.dart';
+import 'package:suara_kita/data/models/user_model.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -19,66 +21,68 @@ class LoginPage extends StatelessWidget {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: Stack(
-          children: [
-            // Tombol back di kiri atas
-            Positioned(
-              top: 50,
-              left: 20,
-              child: IconButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: Colors.white,
-                  size: 28,
+        child: SafeArea(
+          child: Stack(
+            children: [
+              // Tombol back di kiri atas
+              Positioned(
+                top: 10,
+                left: 20,
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
               ),
-            ),
-            // Konten utama
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Spacer(flex: 2),
-                  // Icon voting
-                  const Icon(
-                    Icons.how_to_vote_outlined,
-                    size: 80,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(height: 24),
-                  // Judul
-                  Text(
-                    'Log In',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.unbounded(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
+              // Konten utama
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Spacer(flex: 2),
+                    // Icon voting
+                    const Icon(
+                      Icons.how_to_vote_outlined,
+                      size: 80,
                       color: Colors.white,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Subjudul
-                  Text(
-                    'Masuk untuk melanjutkan',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.almarai(
-                      fontSize: 16,
-                      color: Colors.white.withOpacity(0.9),
+                    const SizedBox(height: 24),
+                    // Judul
+                    Text(
+                      'Log In',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.unbounded(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                  const Spacer(flex: 1),
-                  // Form login
-                  _LoginForm(),
-                  const Spacer(flex: 3),
-                ],
+                    const SizedBox(height: 8),
+                    // Subjudul
+                    Text(
+                      'Masuk untuk melanjutkan',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.almarai(
+                        fontSize: 16,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                    const Spacer(flex: 1),
+                    // Form login
+                    _LoginForm(),
+                    const Spacer(flex: 3),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -103,15 +107,125 @@ class __LoginFormState extends State<_LoginForm> {
         _isLoading = true;
       });
 
-      // TODO: Implement login logic
-      await Future.delayed(const Duration(seconds: 2)); // Simulasi proses login
+      try {
+        // Verifikasi login dengan Firebase
+        final user = await FirebaseService.verifyLogin(
+          _nimController.text.trim(),
+          _passwordController.text,
+        );
 
-      setState(() {
-        _isLoading = false;
-      });
+        setState(() {
+          _isLoading = false;
+        });
 
-      // Jika berhasil, navigasi ke home page
-      // Navigator.pushReplacementNamed(context, '/home');
+        if (user != null) {
+          // Login berhasil
+          _handleSuccessfulLogin(user, context);
+        } else {
+          // Login gagal
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('NIM atau password salah'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _handleSuccessfulLogin(User user, BuildContext context) {
+    // Tampilkan dialog sukses berdasarkan role
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Text(
+          'Login Berhasil',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.almarai(
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF002D12),
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Selamat datang, ${user.fullName}!',
+                style: GoogleFonts.almarai()),
+            const SizedBox(height: 8),
+            Text(
+              'Role: ${_getRoleDisplayName(user.role)}',
+              style: GoogleFonts.almarai(
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF00C64F),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Center(
+            child: SizedBox(
+              width: 120,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _navigateBasedOnRole(user, context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00C64F),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  'LANJUT',
+                  style: GoogleFonts.almarai(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getRoleDisplayName(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Admin';
+      case UserRole.superAdmin:
+        return 'Super Admin';
+      case UserRole.voter:
+        return 'Pemilih';
+    }
+  }
+
+  void _navigateBasedOnRole(User user, BuildContext context) {
+    switch (user.role) {
+      case UserRole.admin:
+      case UserRole.superAdmin:
+        Navigator.pushReplacementNamed(context, '/admin-dashboard');
+        break;
+      case UserRole.voter:
+        Navigator.pushReplacementNamed(context, '/home');
+        break;
     }
   }
 
@@ -151,6 +265,9 @@ class __LoginFormState extends State<_LoginForm> {
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Harap masukkan NIM';
+              }
+              if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                return 'NIM harus berupa angka';
               }
               return null;
             },
@@ -197,6 +314,9 @@ class __LoginFormState extends State<_LoginForm> {
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Harap masukkan password';
+              }
+              if (value.length < 6) {
+                return 'Password minimal 6 karakter';
               }
               return null;
             },

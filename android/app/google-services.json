@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "281825218279",
+    "project_id": "eh-vote-usu",
+    "storage_bucket": "eh-vote-usu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:281825218279:android:dcf0caea7503ec595c1c42",
+        "android_client_info": {
+          "package_name": "com.example.eh_votee"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNiiawfQHczM8SFsWYaU57TfNptXKi-Lc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

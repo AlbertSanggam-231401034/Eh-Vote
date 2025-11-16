@@ -7,8 +7,7 @@ class AdminIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: () {
-        // TODO: Nanti kita buat AdminLoginPage
-        print('Admin icon pressed - akan navigasi ke Admin Login');
+        Navigator.pushNamed(context, '/admin-login');
       },
       icon: const Icon(
         Icons.admin_panel_settings,
