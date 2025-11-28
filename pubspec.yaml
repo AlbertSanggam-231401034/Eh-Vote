@@ -1,23 +1,37 @@
-name: suara_kita  # <-- PASTIKAN INI SUDAH DIGANTI
+name: suara_kita
 description: "Aplikasi E-Voting Mahasiswa USU"
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0' # Sesuaikan dengan versi SDK kamu
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
 
-  # Firebase dependencies
+  # Firebase Core (tetap untuk auth & firestore)
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
   cloud_firestore: ^6.1.0
 
-  # UI dependencies
-  google_fonts: ^6.2.1 # Untuk font Almarai & Unbounded
-  cupertino_icons: ^1.0.2
+  # Supabase untuk storage
+  supabase_flutter: ^2.10.3
+
+  # Camera & Image Processing
+  camera: ^0.11.3
+  image_picker: ^1.2.1
+  google_mlkit_face_detection: ^0.13.1
+  mobile_scanner: ^7.1.3
+
+  # UI & Design
+  google_fonts: ^6.3.2
+  cupertino_icons: ^1.0.8
+
+  # Utilities
+  path_provider: ^2.1.5
+  permission_handler: ^12.0.1
+  http: ^1.6.0  # Untuk upload ke Supabase
 
 dev_dependencies:
   flutter_test:
@@ -26,15 +40,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # Ini adalah tempat kamu mendaftarkan ASET (Gambar, Animasi, Font)
-  # JANGAN LUPA BUAT FOLDER 'assets'
   assets:
-    - assets/images/backgrounds/
-    - assets/images/logos/
     - assets/animations/
-
-  # Ini adalah cara mendaftarkan font Almarai
+#    - assets/images/
   fonts:
     - family: Almarai
       fonts:

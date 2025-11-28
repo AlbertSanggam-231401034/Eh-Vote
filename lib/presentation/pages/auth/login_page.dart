@@ -218,15 +218,85 @@ class __LoginFormState extends State<_LoginForm> {
   }
 
   void _navigateBasedOnRole(User user, BuildContext context) {
-    switch (user.role) {
-      case UserRole.admin:
-      case UserRole.superAdmin:
-        Navigator.pushReplacementNamed(context, '/admin-dashboard');
-        break;
-      case UserRole.voter:
-        Navigator.pushReplacementNamed(context, '/home');
-        break;
+    // Jika user adalah admin, tanya mau ke mana
+    if (user.role == UserRole.admin || user.role == UserRole.superAdmin) {
+      _showAdminChoiceDialog(user, context);
+    } else {
+      // User biasa langsung ke home
+      Navigator.pushReplacementNamed(context, '/home');
     }
+  }
+
+  void _showAdminChoiceDialog(User user, BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Text(
+          'Pilih Mode',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.almarai(
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF002D12),
+          ),
+        ),
+        content: Text(
+          'Halo ${user.fullName}!\nAnda login sebagai admin. Mau masuk sebagai apa?',
+          style: GoogleFonts.almarai(),
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pushReplacementNamed(context, '/home');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF00C64F),
+                    side: const BorderSide(color: Color(0xFF00C64F)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(
+                    'USER BIASA',
+                    style: GoogleFonts.almarai(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pushReplacementNamed(context, '/admin-dashboard');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C64F),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(
+                    'ADMIN',
+                    style: GoogleFonts.almarai(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
