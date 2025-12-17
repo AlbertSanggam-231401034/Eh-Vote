@@ -17,12 +17,15 @@ class User {
   final String major;
   final String gender;
   final String ktmData;
-  final String faceData;
+  final String faceData; // Base64 atau URL gambar (tetap untuk backup)
   final UserRole role;
   final bool hasVoted;
   final DateTime createdAt;
   final String faceImageUrl;
   final String ktmImageUrl;
+
+  // ✅ TAMBAHAN BARU: Face Embedding (On-Device ML)
+  final List<double>? faceEmbedding; // 192-dimensional vector
 
   const User({
     required this.nim,
@@ -41,6 +44,7 @@ class User {
     required this.createdAt,
     required this.faceImageUrl,
     required this.ktmImageUrl,
+    this.faceEmbedding, // ✅ Tambahkan parameter ini
   });
 
   // Convert to Map untuk Firebase
@@ -54,7 +58,7 @@ class User {
       'phoneNumber': phoneNumber,
       'faculty': faculty,
       'major': major,
-      'gender': gender, // ✅ PERBAIKAN: TAMBAH INI
+      'gender': gender,
       'ktmData': ktmData,
       'faceData': faceData,
       'role': role.toString().split('.').last,
@@ -62,6 +66,7 @@ class User {
       'createdAt': Timestamp.fromDate(createdAt),
       'faceImageUrl': faceImageUrl,
       'ktmImageUrl': ktmImageUrl,
+      'faceEmbedding': faceEmbedding, // ✅ Simpan di Firebase
     };
   }
 
@@ -76,7 +81,7 @@ class User {
       phoneNumber: map['phoneNumber'] as String,
       faculty: map['faculty'] as String,
       major: map['major'] as String,
-      gender: map['gender'] as String? ?? 'Laki-laki', // ✅ PERBAIKAN: HANDLE NULL
+      gender: map['gender'] as String? ?? 'Laki-laki',
       ktmData: map['ktmData'] as String,
       faceData: map['faceData'] as String,
       role: UserRole.values.firstWhere(
@@ -87,6 +92,9 @@ class User {
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       faceImageUrl: map['faceImageUrl'] as String? ?? '',
       ktmImageUrl: map['ktmImageUrl'] as String? ?? '',
+      faceEmbedding: map['faceEmbedding'] != null
+          ? List<double>.from(map['faceEmbedding'])
+          : null, // ✅ Load dari Firebase
     );
   }
 
@@ -102,6 +110,7 @@ class User {
     String? faceData,
     String? ktmData,
     String? gender,
+    List<double>? faceEmbedding, // ✅ Tambahkan parameter ini
   }) {
     return User(
       nim: nim,
@@ -120,20 +129,12 @@ class User {
       createdAt: createdAt,
       faceImageUrl: faceImageUrl ?? this.faceImageUrl,
       ktmImageUrl: ktmImageUrl ?? this.ktmImageUrl,
+      faceEmbedding: faceEmbedding ?? this.faceEmbedding, // ✅ Update embedding
     );
   }
 
   @override
   String toString() {
-    return 'User(nim: $nim, fullName: $fullName, role: $role, faculty: $faculty)';
+    return 'User(nim: $nim, fullName: $fullName, role: $role, hasEmbedding: ${faceEmbedding != null})';
   }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is User && other.nim == nim;
-  }
-
-  @override
-  int get hashCode => nim.hashCode;
 }
