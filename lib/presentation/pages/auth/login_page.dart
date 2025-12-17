@@ -8,7 +8,6 @@ class LoginPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Warna yang sama dengan Welcome Page
     const Color kPrimaryGreen = Color(0xFF00C64F);
     const Color kDarkGreen = Color(0xFF002D12);
 
@@ -24,14 +23,11 @@ class LoginPage extends StatelessWidget {
         child: SafeArea(
           child: Stack(
             children: [
-              // Tombol back di kiri atas
               Positioned(
                 top: 10,
                 left: 20,
                 child: IconButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
+                  onPressed: () => Navigator.pop(context),
                   icon: const Icon(
                     Icons.arrow_back_rounded,
                     color: Colors.white,
@@ -39,7 +35,6 @@ class LoginPage extends StatelessWidget {
                   ),
                 ),
               ),
-              // Konten utama
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: Column(
@@ -47,14 +42,12 @@ class LoginPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Spacer(flex: 2),
-                    // Icon voting
                     const Icon(
                       Icons.how_to_vote_outlined,
                       size: 80,
                       color: Colors.white,
                     ),
                     const SizedBox(height: 24),
-                    // Judul
                     Text(
                       'Log In',
                       textAlign: TextAlign.center,
@@ -65,7 +58,6 @@ class LoginPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Subjudul
                     Text(
                       'Masuk untuk melanjutkan',
                       textAlign: TextAlign.center,
@@ -75,8 +67,7 @@ class LoginPage extends StatelessWidget {
                       ),
                     ),
                     const Spacer(flex: 1),
-                    // Form login
-                    _LoginForm(),
+                    const _LoginForm(), // Form dipisah ke widget sendiri
                     const Spacer(flex: 3),
                   ],
                 ),
@@ -90,6 +81,8 @@ class LoginPage extends StatelessWidget {
 }
 
 class _LoginForm extends StatefulWidget {
+  const _LoginForm();
+
   @override
   State<_LoginForm> createState() => __LoginFormState();
 }
@@ -103,26 +96,20 @@ class __LoginFormState extends State<_LoginForm> {
 
   void _login() async {
     if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
 
       try {
-        // Verifikasi login dengan Firebase
         final user = await FirebaseService.verifyLogin(
           _nimController.text.trim(),
           _passwordController.text,
         );
 
-        setState(() {
-          _isLoading = false;
-        });
+        if (!mounted) return;
+        setState(() => _isLoading = false);
 
         if (user != null) {
-          // Login berhasil
           _handleSuccessfulLogin(user, context);
         } else {
-          // Login gagal
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('NIM atau password salah'),
@@ -131,10 +118,8 @@ class __LoginFormState extends State<_LoginForm> {
           );
         }
       } catch (e) {
-        setState(() {
-          _isLoading = false;
-        });
-
+        if (!mounted) return;
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
@@ -146,9 +131,9 @@ class __LoginFormState extends State<_LoginForm> {
   }
 
   void _handleSuccessfulLogin(User user, BuildContext context) {
-    // Tampilkan dialog sukses berdasarkan role
     showDialog(
       context: context,
+      barrierDismissible: false, // User harus pilih salah satu
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -162,10 +147,9 @@ class __LoginFormState extends State<_LoginForm> {
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Selamat datang, ${user.fullName}!',
-                style: GoogleFonts.almarai()),
+                textAlign: TextAlign.center, style: GoogleFonts.almarai()),
             const SizedBox(height: 8),
             Text(
               'Role: ${_getRoleDisplayName(user.role)}',
@@ -182,7 +166,7 @@ class __LoginFormState extends State<_LoginForm> {
               width: 120,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context);
+                  Navigator.pop(context); // Tutup dialog sukses
                   _navigateBasedOnRole(user, context);
                 },
                 style: ElevatedButton.styleFrom(
@@ -194,9 +178,7 @@ class __LoginFormState extends State<_LoginForm> {
                 ),
                 child: Text(
                   'LANJUT',
-                  style: GoogleFonts.almarai(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: GoogleFonts.almarai(fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -218,18 +200,18 @@ class __LoginFormState extends State<_LoginForm> {
   }
 
   void _navigateBasedOnRole(User user, BuildContext context) {
-    // Jika user adalah admin, tanya mau ke mana
     if (user.role == UserRole.admin || user.role == UserRole.superAdmin) {
       _showAdminChoiceDialog(user, context);
     } else {
-      // User biasa langsung ke home
-      Navigator.pushReplacementNamed(context, '/home');
+      // ✅ FIX: Kirim user arguments ke home
+      Navigator.pushReplacementNamed(context, '/home', arguments: user);
     }
   }
 
   void _showAdminChoiceDialog(User user, BuildContext context) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -253,7 +235,8 @@ class __LoginFormState extends State<_LoginForm> {
                 child: OutlinedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    Navigator.pushReplacementNamed(context, '/home');
+                    // ✅ FIX: Kirim user arguments
+                    Navigator.pushReplacementNamed(context, '/home', arguments: user);
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF00C64F),
@@ -264,9 +247,7 @@ class __LoginFormState extends State<_LoginForm> {
                   ),
                   child: Text(
                     'USER BIASA',
-                    style: GoogleFonts.almarai(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: GoogleFonts.almarai(fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
               ),
@@ -275,7 +256,8 @@ class __LoginFormState extends State<_LoginForm> {
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    Navigator.pushReplacementNamed(context, '/admin-dashboard');
+                    // ✅ FIX: Kirim user arguments agar tidak ditolak di main.dart
+                    Navigator.pushReplacementNamed(context, '/admin-dashboard', arguments: user);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00C64F),
@@ -286,9 +268,7 @@ class __LoginFormState extends State<_LoginForm> {
                   ),
                   child: Text(
                     'ADMIN',
-                    style: GoogleFonts.almarai(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: GoogleFonts.almarai(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -305,18 +285,12 @@ class __LoginFormState extends State<_LoginForm> {
       key: _formKey,
       child: Column(
         children: [
-          // Input NIM
           TextFormField(
             controller: _nimController,
             decoration: InputDecoration(
               labelText: 'NIM',
-              labelStyle: GoogleFonts.almarai(
-                color: Colors.white.withOpacity(0.8),
-              ),
-              prefixIcon: const Icon(
-                Icons.badge_rounded,
-                color: Colors.white,
-              ),
+              labelStyle: GoogleFonts.almarai(color: Colors.white.withOpacity(0.8)),
+              prefixIcon: const Icon(Icons.badge_rounded, color: Colors.white),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: const BorderSide(color: Colors.white),
@@ -333,35 +307,21 @@ class __LoginFormState extends State<_LoginForm> {
             style: GoogleFonts.almarai(color: Colors.white),
             keyboardType: TextInputType.number,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Harap masukkan NIM';
-              }
-              if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-                return 'NIM harus berupa angka';
-              }
+              if (value == null || value.isEmpty) return 'Harap masukkan NIM';
+              if (!RegExp(r'^[0-9]+$').hasMatch(value)) return 'NIM harus berupa angka';
               return null;
             },
           ),
           const SizedBox(height: 16),
-          // Input Password
           TextFormField(
             controller: _passwordController,
             obscureText: !_isPasswordVisible,
             decoration: InputDecoration(
               labelText: 'Password',
-              labelStyle: GoogleFonts.almarai(
-                color: Colors.white.withOpacity(0.8),
-              ),
-              prefixIcon: const Icon(
-                Icons.lock_rounded,
-                color: Colors.white,
-              ),
+              labelStyle: GoogleFonts.almarai(color: Colors.white.withOpacity(0.8)),
+              prefixIcon: const Icon(Icons.lock_rounded, color: Colors.white),
               suffixIcon: IconButton(
-                onPressed: () {
-                  setState(() {
-                    _isPasswordVisible = !_isPasswordVisible;
-                  });
-                },
+                onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
                 icon: Icon(
                   _isPasswordVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
                   color: Colors.white,
@@ -382,17 +342,11 @@ class __LoginFormState extends State<_LoginForm> {
             ),
             style: GoogleFonts.almarai(color: Colors.white),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Harap masukkan password';
-              }
-              if (value.length < 6) {
-                return 'Password minimal 6 karakter';
-              }
+              if (value == null || value.isEmpty) return 'Harap masukkan password';
               return null;
             },
           ),
           const SizedBox(height: 24),
-          // Tombol Login
           SizedBox(
             width: double.infinity,
             height: 50,
@@ -401,41 +355,26 @@ class __LoginFormState extends State<_LoginForm> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: const Color(0xFF00C64F),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: _isLoading
                   ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(Color(0xFF00C64F)),
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2),
               )
                   : Text(
                 'LOG IN',
                 style: GoogleFonts.almarai(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                    fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
           const SizedBox(height: 16),
-          // Lupa password?
           TextButton(
-            onPressed: () {
-              // TODO: Navigate to forgot password page
-            },
-            child: Text(
-              'Lupa Password?',
-              style: GoogleFonts.almarai(
-                color: Colors.white,
-                fontSize: 14,
-              ),
-            ),
+            onPressed: () {},
+            child: Text('Lupa Password?',
+                style: GoogleFonts.almarai(color: Colors.white, fontSize: 14)),
           ),
         ],
       ),
