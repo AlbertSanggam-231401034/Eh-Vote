@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:suara_kita/services/storage_service.dart';
-import 'package:suara_kita/presentation/pages/scan/camera_page.dart'; // IMPORT CAMERA PAGE
+import 'package:suara_kita/presentation/pages/scan/camera_page.dart';
 
 class FaceScanPage extends StatefulWidget {
   final String nim;
@@ -43,8 +43,21 @@ class _FaceScanPageState extends State<FaceScanPage> {
       );
 
       if (imageFile != null) {
-        // Upload ke Supabase
-        final String imageUrl = await StorageService.uploadFaceImage(imageFile, widget.nim);
+        // Upload ke Supabase - SEKARANG MENANGANI NULLABLE
+        final String? imageUrl = await StorageService.uploadFaceImage(imageFile, widget.nim);
+
+        if (imageUrl == null) {
+          setState(() {
+            _isScanning = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal mengupload foto wajah'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
 
         setState(() {
           _isScanning = false;
@@ -321,7 +334,9 @@ class _FaceScanPageState extends State<FaceScanPage> {
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () {
-                                  Navigator.pop(context, _imageUrl);
+                                  if (_imageUrl != null) {
+                                    Navigator.pop(context, _imageUrl);
+                                  }
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,

@@ -1,97 +1,131 @@
-// lib/services/supabase_storage_service.dart
 import 'dart:io';
-import 'dart:typed_data'; // Penting: Untuk tipe data Uint8List
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/config/supabase_config.dart';
+import '../core/config/supabase_config.dart'; // Pastikan import ini ada jika config dipisah
 
 class SupabaseStorageService {
   // Instance client Supabase
-  static final SupabaseClient _supabase = SupabaseClient(
-    SupabaseConfig.supabaseUrl,
-    SupabaseConfig.supabaseAnonKey,
-  );
+  static final SupabaseClient _supabase = Supabase.instance.client;
 
-  // Initialize Supabase (biasanya dipanggil di main.dart)
+  // ========== CONFIGURATION ==========
+
+  // ✅ PENTING: Gunakan satu bucket utama agar permission lebih mudah diatur
+  // Pastikan bucket 'ktm-images' sudah Public di Supabase Console
+  static const String mainBucket = 'ktm-images';
+
+  // ========== INITIALIZATION ==========
+
   static Future<void> initialize() async {
+    // Inisialisasi biasanya sudah di main.dart, tapi method ini disimpan untuk jaga-jaga
     await Supabase.initialize(
       url: SupabaseConfig.supabaseUrl,
       anonKey: SupabaseConfig.supabaseAnonKey,
     );
   }
 
-  // Upload image to Supabase Storage
-  static Future<String> uploadImage({
-    required File imageFile,
-    required String bucketName,
-    required String fileName,
-  }) async {
+  // ========== GENERIC UPLOAD METHODS (FIXED) ==========
+
+  /// ✅ Upload file Generic (Positional Arguments - Sesuai yang diminta Page)
+  /// [file] : File yang akan diupload
+  /// [path] : Path lengkap termasuk folder (contoh: 'candidates/foto.jpg')
+  static Future<String?> uploadFile(File file, String path) async {
     try {
-      // Read file bytes as Uint8List (Perbaikan utama disini)
-      Uint8List imageBytes = await imageFile.readAsBytes();
+      // 1. Validasi file
+      if (!await file.exists()) {
+        print('❌ File tidak ditemukan: ${file.path}');
+        return null;
+      }
 
-      // Upload to Supabase Storage using uploadBinary
-      await _supabase.storage
-          .from(bucketName)
-          .uploadBinary(fileName, imageBytes);
+      // 2. Opsi Upload (Cache & Upsert/Overwrite)
+      const FileOptions fileOptions = FileOptions(
+        cacheControl: '3600',
+        upsert: true,
+      );
 
-      // Get public URL after upload
-      final String publicUrl = _supabase.storage
-          .from(bucketName)
-          .getPublicUrl(fileName);
+      // 3. Upload ke Supabase
+      // Kita upload ke mainBucket, tapi path-nya mengandung folder
+      await _supabase.storage.from(mainBucket).upload(
+        path,
+        file,
+        fileOptions: fileOptions,
+      );
 
-      print('✅ Image uploaded to Supabase: $publicUrl');
+      // 4. Ambil Public URL
+      final String publicUrl = _supabase.storage.from(mainBucket).getPublicUrl(path);
+
+      print('✅ Upload Sukses ke: $path');
+      print('🔗 URL: $publicUrl');
+
       return publicUrl;
     } catch (e) {
-      print('❌ Error uploading to Supabase: $e');
-      throw Exception('Gagal mengupload gambar ke Supabase: $e');
+      print('❌ Error uploading file to Supabase: $e');
+      return null;
     }
   }
 
-  // Helper: Upload face image
-  static Future<String> uploadFaceImage(File imageFile, String nim) async {
-    final String fileName = 'face_${nim}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    return uploadImage(
-      imageFile: imageFile,
-      bucketName: SupabaseConfig.faceImagesBucket,
-      fileName: fileName,
-    );
-  }
-
-  // Helper: Upload KTM image
-  static Future<String> uploadKtmImage(File imageFile, String nim) async {
-    final String fileName = 'ktm_${nim}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    return uploadImage(
-      imageFile: imageFile,
-      bucketName: SupabaseConfig.ktmImagesBucket,
-      fileName: fileName,
-    );
-  }
-
-  // Delete image from Supabase Storage
-  static Future<void> deleteImage(String imageUrl) async {
+  /// Upload binary data
+  static Future<String?> uploadBinary(Uint8List data, String path) async {
     try {
-      // Extract file name from URL
-      final Uri uri = Uri.parse(imageUrl);
-      final String filePath = uri.pathSegments.last;
+      await _supabase.storage.from(mainBucket).uploadBinary(
+        path,
+        data,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+      );
 
-      // Determine bucket from URL logic
-      final String bucketName = uri.pathSegments.contains(SupabaseConfig.faceImagesBucket)
-          ? SupabaseConfig.faceImagesBucket
-          : SupabaseConfig.ktmImagesBucket;
-
-      await _supabase.storage
-          .from(bucketName)
-          .remove([filePath]);
-
-      print('✅ Image deleted from Supabase: $imageUrl');
+      final String publicUrl = _supabase.storage.from(mainBucket).getPublicUrl(path);
+      return publicUrl;
     } catch (e) {
-      print('❌ Error deleting from Supabase: $e');
-      throw Exception('Gagal menghapus gambar dari Supabase: $e');
+      print('❌ Error uploading binary: $e');
+      return null;
     }
   }
 
-  // Utility: Check if URL is from Supabase Storage
-  static bool isSupabaseUrl(String url) {
-    return url.contains(SupabaseConfig.supabaseUrl);
+  // ========== HELPER WRAPPERS (Untuk Kompatibilitas Kode Lama) ==========
+
+  /// Upload KTM (Folder: ktm_scans)
+  static Future<String?> uploadKtmImage(File imageFile, String nim) async {
+    final fileName = 'ktm_${nim}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    return uploadFile(imageFile, 'ktm_scans/$fileName');
+  }
+
+  /// Upload Wajah (Folder: face_scans)
+  static Future<String?> uploadFaceImage(File imageFile, String nim) async {
+    final fileName = 'face_${nim}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    return uploadFile(imageFile, 'face_scans/$fileName');
+  }
+
+  /// Upload Candidate Photo (Wrapper opsional jika kode lama masih pakai ini)
+  static Future<String?> uploadCandidatePhoto(File imageFile, String candidateId) async {
+    final fileName = 'candidate_${candidateId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    return uploadFile(imageFile, 'candidates/$fileName');
+  }
+
+  // ========== DELETE METHODS ==========
+
+  /// Delete file berdasarkan URL
+  static Future<bool> deleteFile(String fileUrl) async {
+    try {
+      final Uri uri = Uri.parse(fileUrl);
+      final List<String> segments = uri.pathSegments;
+
+      // Cari index bucket di URL
+      final int bucketIndex = segments.indexOf(mainBucket);
+
+      if (bucketIndex == -1 || bucketIndex + 1 >= segments.length) {
+        print('❌ Invalid URL format for deletion');
+        return false;
+      }
+
+      // Gabungkan sisa segment menjadi path
+      final String filePath = segments.sublist(bucketIndex + 1).join('/');
+
+      print('🗑️ Deleting: $filePath');
+      await _supabase.storage.from(mainBucket).remove([filePath]);
+
+      return true;
+    } catch (e) {
+      print('❌ Error deleting file: $e');
+      return false;
+    }
   }
 }

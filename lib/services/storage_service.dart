@@ -6,6 +6,8 @@ import './supabase_storage_service.dart';
 class StorageService {
   static final ImagePicker _imagePicker = ImagePicker();
 
+  // --- CAMERA & GALLERY OPERATIONS ---
+
   // Take photo using camera
   static Future<File?> takePhoto() async {
     try {
@@ -45,29 +47,138 @@ class StorageService {
     }
   }
 
-  // Upload face image to Supabase - METHOD BARU
-  static Future<String> uploadFaceImage(File imageFile, String nim) async {
-    return SupabaseStorageService.uploadFaceImage(imageFile, nim);
-  }
+  // --- UPLOAD OPERATIONS (Updated to match SupabaseStorageService) ---
 
-  // Upload KTM image to Supabase - METHOD BARU
-  static Future<String> uploadKtmImage(File imageFile, String nim) async {
-    return SupabaseStorageService.uploadKtmImage(imageFile, nim);
-  }
+  // Upload face image
+  static Future<String?> uploadFaceImage(File imageFile, String nim) async {
+    try {
+      // Panggil wrapper yang sudah kita buat di SupabaseStorageService
+      final String? imageUrl = await SupabaseStorageService.uploadFaceImage(imageFile, nim);
 
-  // Delete image from storage
-  static Future<void> deleteImage(String imageUrl) async {
-    if (SupabaseStorageService.isSupabaseUrl(imageUrl)) {
-      await SupabaseStorageService.deleteImage(imageUrl);
-    } else {
-      print('⚠️ URL bukan dari Supabase, skip deletion');
+      if (imageUrl == null) {
+        throw Exception('Gagal mengupload foto wajah');
+      }
+      return imageUrl;
+    } catch (e) {
+      print('❌ Error uploading face image: $e');
+      rethrow;
     }
   }
 
-  // Scan barcode (simulated)
+  // Upload KTM image
+  static Future<String?> uploadKtmImage(File imageFile, String nim) async {
+    try {
+      final String? imageUrl = await SupabaseStorageService.uploadKtmImage(imageFile, nim);
+
+      if (imageUrl == null) {
+        throw Exception('Gagal mengupload foto KTM');
+      }
+      return imageUrl;
+    } catch (e) {
+      print('❌ Error uploading KTM image: $e');
+      rethrow;
+    }
+  }
+
+  // Upload candidate photo
+  static Future<String?> uploadCandidatePhoto(File imageFile, String candidateId) async {
+    try {
+      // Manual path construction karena wrapper khusus candidate mungkin sudah dihapus di SupabaseService
+      // untuk penyederhanaan. Kita pakai uploadFile generic.
+      final fileName = 'cand_${candidateId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String? imageUrl = await SupabaseStorageService.uploadFile(
+          imageFile,
+          'candidates/$fileName'
+      );
+
+      if (imageUrl == null) {
+        throw Exception('Gagal mengupload foto kandidat');
+      }
+      return imageUrl;
+    } catch (e) {
+      print('❌ Error uploading candidate photo: $e');
+      rethrow;
+    }
+  }
+
+  // Upload election banner
+  static Future<String?> uploadElectionBanner(File imageFile, String electionId) async {
+    try {
+      final fileName = 'banner_${electionId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String? imageUrl = await SupabaseStorageService.uploadFile(
+          imageFile,
+          'election_banners/$fileName'
+      );
+
+      if (imageUrl == null) {
+        throw Exception('Gagal mengupload banner pemilihan');
+      }
+      return imageUrl;
+    } catch (e) {
+      print('❌ Error uploading election banner: $e');
+      rethrow;
+    }
+  }
+
+  // Upload user avatar
+  static Future<String?> uploadUserAvatar(File imageFile, String userId) async {
+    try {
+      final fileName = 'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String? imageUrl = await SupabaseStorageService.uploadFile(
+          imageFile,
+          'avatars/$fileName'
+      );
+
+      if (imageUrl == null) {
+        throw Exception('Gagal mengupload avatar user');
+      }
+      return imageUrl;
+    } catch (e) {
+      print('❌ Error uploading user avatar: $e');
+      rethrow;
+    }
+  }
+
+  // Generic file upload (Updated params)
+  static Future<String?> uploadFile({
+    required File file,
+    String folder = 'uploads', // Default folder
+    String? fileName,
+  }) async {
+    try {
+      final finalFileName = fileName ?? 'file_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final path = '$folder/$finalFileName';
+
+      final String? imageUrl = await SupabaseStorageService.uploadFile(
+          file,
+          path
+      );
+
+      if (imageUrl == null) {
+        throw Exception('Gagal mengupload file');
+      }
+      return imageUrl;
+    } catch (e) {
+      print('❌ Error uploading file: $e');
+      rethrow;
+    }
+  }
+
+  // --- DELETE & UTILITY ---
+
+  // Delete image
+  static Future<bool> deleteImage(String imageUrl) async {
+    try {
+      return await SupabaseStorageService.deleteFile(imageUrl);
+    } catch (e) {
+      print('❌ Error deleting image: $e');
+      return false;
+    }
+  }
+
+  // Scan barcode (Simulation)
   static Future<String?> scanBarcode() async {
     try {
-      // TODO: Implement actual barcode scanning
       await Future.delayed(const Duration(seconds: 2));
       return 'KTM_${DateTime.now().millisecondsSinceEpoch}';
     } catch (e) {

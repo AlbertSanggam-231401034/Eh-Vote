@@ -1,4 +1,4 @@
-import 'dart:convert'; // Tambahkan import ini
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -30,8 +30,8 @@ class FaceRecognitionService {
 
   // === CONSTANTS ===
   static const String _modelPath = 'assets/models/mobilefacenet.tflite';
-  static const int _inputSize = 112; // MobileFaceNet input size: 112x112
-  static const double _threshold = 0.6; // Similarity threshold
+  static const int _inputSize = 112;
+  static const double _threshold = 0.6;
 
   // === PUBLIC METHODS ===
 
@@ -39,18 +39,8 @@ class FaceRecognitionService {
   Future<void> initialize() async {
     try {
       print('🔄 Loading TensorFlow Lite model...');
-
-      // Load model
       _interpreter = await Interpreter.fromAsset(_modelPath);
-
-      // Get model info (for debugging)
-      final inputShape = _interpreter!.getInputTensor(0).shape;
-      final outputShape = _interpreter!.getOutputTensor(0).shape;
-
       print('✅ Model loaded successfully!');
-      print('📊 Input shape: $inputShape');
-      print('📊 Output shape: $outputShape');
-
       _isModelLoaded = true;
     } catch (e) {
       print('❌ Failed to load model: $e');
@@ -58,7 +48,6 @@ class FaceRecognitionService {
     }
   }
 
-  // Check if model is loaded
   bool isModelLoaded() => _isModelLoaded;
 
   // Capture face from camera
@@ -74,10 +63,7 @@ class FaceRecognitionService {
 
       if (image != null) {
         final file = File(image.path);
-
-        // Verify face presence and quality
         final isFaceValid = await _validateFaceImage(file);
-
         return isFaceValid ? file : null;
       }
       return null;
@@ -99,10 +85,7 @@ class FaceRecognitionService {
 
       if (image != null) {
         final file = File(image.path);
-
-        // Verify face presence and quality
         final isFaceValid = await _validateFaceImage(file);
-
         return isFaceValid ? file : null;
       }
       return null;
@@ -115,27 +98,25 @@ class FaceRecognitionService {
   // Extract face embedding (feature vector)
   Future<List<double>?> extractFaceEmbedding(File faceImage) async {
     try {
-      if (!_isModelLoaded) {
-        await initialize();
-      }
+      if (!_isModelLoaded) await initialize();
 
-      // Preprocess image
+      // Preprocess image -> Return List 4D [1, 112, 112, 3]
       final inputData = await _preprocessImage(faceImage);
       if (inputData == null) {
         print('❌ Failed to preprocess image');
         return null;
       }
 
+      // Output buffer: [1, 192]
+      var outputBuffer = List.filled(1 * 192, 0.0).reshape([1, 192]);
+
       // Run inference
-      final output = Float32List(192); // MobileFaceNet output: 192 dimensions
-      _interpreter!.run(inputData, output);
+      _interpreter!.run(inputData, outputBuffer);
 
-      // Convert to List<double> and normalize
-      final embedding = output.map((e) => e.toDouble()).toList();
-      final normalizedEmbedding = _normalizeVector(embedding);
+      // Flatten output
+      List<double> embedding = List<double>.from(outputBuffer[0]);
+      return _normalizeVector(embedding);
 
-      print('📊 Embedding extracted: ${normalizedEmbedding.length} dimensions');
-      return normalizedEmbedding;
     } catch (e) {
       print('❌ Error extracting embedding: $e');
       return null;
@@ -145,17 +126,16 @@ class FaceRecognitionService {
   // Extract embedding without validation (for testing)
   Future<List<double>?> extractEmbeddingDirect(File imageFile) async {
     try {
-      if (!_isModelLoaded) {
-        await initialize();
-      }
+      if (!_isModelLoaded) await initialize();
 
-      final inputData = await _preprocessImageSimple(imageFile);
+      // Gunakan _preprocessImage yang sama (sudah diperbaiki)
+      final inputData = await _preprocessImage(imageFile);
       if (inputData == null) return null;
 
-      final output = Float32List(192);
-      _interpreter!.run(inputData, output);
+      var outputBuffer = List.filled(1 * 192, 0.0).reshape([1, 192]);
+      _interpreter!.run(inputData, outputBuffer);
 
-      final embedding = output.map((e) => e.toDouble()).toList();
+      List<double> embedding = List<double>.from(outputBuffer[0]);
       return _normalizeVector(embedding);
     } catch (e) {
       print('❌ Direct extraction error: $e');
@@ -163,23 +143,15 @@ class FaceRecognitionService {
     }
   }
 
-  // Compare two embeddings (for verification)
+  // Verify Face
   Future<double> verifyFace({
     required File liveFaceImage,
     required List<double> storedEmbedding,
   }) async {
     try {
-      // Extract embedding from live image
       final liveEmbedding = await extractFaceEmbedding(liveFaceImage);
-      if (liveEmbedding == null) {
-        return 0.0;
-      }
-
-      // Calculate similarity score
-      final similarity = _cosineSimilarity(liveEmbedding, storedEmbedding);
-      print('🔍 Face similarity score: ${similarity.toStringAsFixed(4)}');
-
-      return similarity;
+      if (liveEmbedding == null) return 0.0;
+      return _cosineSimilarity(liveEmbedding, storedEmbedding);
     } catch (e) {
       print('❌ Error in face verification: $e');
       return 0.0;
@@ -195,136 +167,91 @@ class FaceRecognitionService {
       liveFaceImage: liveFaceImage,
       storedEmbedding: storedEmbedding,
     );
-
     return similarity >= _threshold;
   }
 
-  // Convert embedding to Base64 string for storage/transmission
+  // Helper Conversion Methods
   String embeddingToBase64(List<double> embedding) {
     try {
-      // Convert to Float32List first (more compact than Float64List)
       final float32List = Float32List.fromList(embedding);
       final bytes = float32List.buffer.asUint8List();
       return base64Encode(bytes);
     } catch (e) {
-      print('❌ Error converting embedding to Base64: $e');
       return '';
     }
   }
 
-  // Convert Base64 string back to embedding
   List<double>? base64ToEmbedding(String base64String) {
     try {
       if (base64String.isEmpty) return null;
-
       final bytes = base64Decode(base64String);
       final float32List = Float32List.view(bytes.buffer);
       return float32List.toList();
     } catch (e) {
-      print('❌ Error converting Base64 to embedding: $e');
       return null;
     }
   }
 
-  // Convert embedding to JSON string
-  String embeddingToJson(List<double> embedding) {
-    return jsonEncode(embedding);
-  }
+  String embeddingToJson(List<double> embedding) => jsonEncode(embedding);
 
-  // Convert JSON string back to embedding
   List<double>? jsonToEmbedding(String jsonString) {
     try {
       final decoded = jsonDecode(jsonString);
-
       if (decoded is List) {
-        // Konversi dari List<dynamic> ke List<double>
         return decoded.map((e) {
           if (e is int) return e.toDouble();
           if (e is double) return e;
           return 0.0;
         }).toList();
       }
-
       return null;
     } catch (e) {
-      print('❌ Error converting JSON to embedding: $e');
       return null;
     }
   }
 
   // === PRIVATE METHODS ===
 
-  // Validate face image quality
   Future<bool> _validateFaceImage(File imageFile) async {
     try {
       final inputImage = InputImage.fromFile(imageFile);
       final faces = await _faceDetector.processImage(inputImage);
 
-      // Check if exactly one face is detected
       if (faces.isEmpty) {
         print('⚠️  No face detected');
         return false;
       }
-
       if (faces.length > 1) {
         print('⚠️  Multiple faces detected (${faces.length})');
         return false;
       }
 
       final face = faces.first;
-
-      // Check face size (minimum 20% of image dimensions)
       final imageBytes = await imageFile.readAsBytes();
       final decodedImage = img.decodeImage(imageBytes);
+
       if (decodedImage != null) {
-        final imageWidth = decodedImage.width;
-        final imageHeight = decodedImage.height;
-        final faceWidth = face.boundingBox.width;
-        final faceHeight = face.boundingBox.height;
-
-        final minFaceWidth = imageWidth * 0.2;
-        final minFaceHeight = imageHeight * 0.2;
-
-        if (faceWidth < minFaceWidth || faceHeight < minFaceHeight) {
-          print('⚠️  Face too small in image');
+        final minFaceWidth = decodedImage.width * 0.2;
+        final minFaceHeight = decodedImage.height * 0.2;
+        if (face.boundingBox.width < minFaceWidth || face.boundingBox.height < minFaceHeight) {
+          print('⚠️  Face too small');
           return false;
         }
       }
 
-      // Check face alignment
       final yaw = face.headEulerAngleY ?? 0;
       final pitch = face.headEulerAngleX ?? 0;
-      final roll = face.headEulerAngleZ ?? 0;
 
-      // Allowable angles: ±25 degrees for yaw, ±15 for pitch, ±10 for roll
-      if (yaw.abs() > 25) {
-        print('⚠️  Face yaw angle too large: ${yaw.toStringAsFixed(1)}°');
+      if (yaw.abs() > 25 || pitch.abs() > 15) {
+        print('⚠️  Face angle too large');
         return false;
       }
 
-      if (pitch.abs() > 15) {
-        print('⚠️  Face pitch angle too large: ${pitch.toStringAsFixed(1)}°');
-        return false;
-      }
-
-      if (roll.abs() > 10) {
-        print('⚠️  Face roll angle too large: ${roll.toStringAsFixed(1)}°');
-        return false;
-      }
-
-      // Check if eyes are open
       final leftEyeOpen = face.leftEyeOpenProbability ?? 0;
       final rightEyeOpen = face.rightEyeOpenProbability ?? 0;
-
       if (leftEyeOpen < 0.4 || rightEyeOpen < 0.4) {
-        print('⚠️  Eyes not fully open (L: ${leftEyeOpen.toStringAsFixed(2)}, R: ${rightEyeOpen.toStringAsFixed(2)})');
+        print('⚠️  Eyes not fully open');
         return false;
-      }
-
-      // Check smile probability (optional, for better quality)
-      final smileProb = face.smilingProbability ?? 0;
-      if (smileProb > 0.8) {
-        print('ℹ️  Subject is smiling (probability: ${smileProb.toStringAsFixed(2)})');
       }
 
       return true;
@@ -334,20 +261,13 @@ class FaceRecognitionService {
     }
   }
 
-  // Preprocess image for MobileFaceNet
-  Future<Float32List?> _preprocessImage(File imageFile) async {
+  // ✅ PREPROCESS IMAGE FIX (4D ARRAY)
+  Future<List<dynamic>?> _preprocessImage(File imageFile) async {
     try {
-      // Read image bytes
       final imageBytes = await imageFile.readAsBytes();
-
-      // Decode image
       final originalImage = img.decodeImage(imageBytes);
-      if (originalImage == null) {
-        print('❌ Failed to decode image');
-        return null;
-      }
+      if (originalImage == null) return null;
 
-      // Detect face for cropping
       final inputImage = InputImage.fromFile(imageFile);
       final faces = await _faceDetector.processImage(inputImage);
 
@@ -356,16 +276,13 @@ class FaceRecognitionService {
         return null;
       }
 
-      // Get first face bounding box
       final faceRect = faces.first.boundingBox;
 
-      // Ensure bounding box is within image bounds
       final x = faceRect.left.clamp(0, originalImage.width - 1).toInt();
       final y = faceRect.top.clamp(0, originalImage.height - 1).toInt();
       final width = faceRect.width.clamp(1, originalImage.width - x).toInt();
       final height = faceRect.height.clamp(1, originalImage.height - y).toInt();
 
-      // Crop face with boundary checks
       final croppedImage = img.copyCrop(
         originalImage,
         x: x,
@@ -374,155 +291,63 @@ class FaceRecognitionService {
         height: height,
       );
 
-      // Resize to 112x112
       final resizedImage = img.copyResize(
         croppedImage,
         width: _inputSize,
         height: _inputSize,
-        interpolation: img.Interpolation.cubic,
       );
 
-      // Convert to Float32List and normalize
-      final inputData = Float32List(_inputSize * _inputSize * 3);
-      int index = 0;
+      // Create 4D array [1, 112, 112, 3]
+      var inputBuffer = List.generate(
+          1,
+              (i) => List.generate(
+              _inputSize,
+                  (y) => List.generate(
+                  _inputSize,
+                      (x) {
+                    final pixel = resizedImage.getPixel(x, y);
+                    // Normalize (value - 128) / 128
+                    return [
+                      (pixel.r - 128) / 128,
+                      (pixel.g - 128) / 128,
+                      (pixel.b - 128) / 128
+                    ];
+                  }
+              )
+          )
+      );
 
-      for (int y = 0; y < _inputSize; y++) {
-        for (int x = 0; x < _inputSize; x++) {
-          final pixel = resizedImage.getPixel(x, y);
-
-          // Extract RGB components using img library methods
-          final r = pixel.r.toDouble();
-          final g = pixel.g.toDouble();
-          final b = pixel.b.toDouble();
-
-          // MobileFaceNet expects normalized pixels [-1, 1]
-          inputData[index++] = (r - 127.5) / 127.5;   // R
-          inputData[index++] = (g - 127.5) / 127.5; // G
-          inputData[index++] = (b - 127.5) / 127.5;  // B
-        }
-      }
-
-      return inputData;
+      return inputBuffer;
     } catch (e) {
       print('❌ Error preprocessing image: $e');
       return null;
     }
   }
 
-  // Alternative preprocessing method without face detection
-  Future<Float32List?> _preprocessImageSimple(File imageFile) async {
-    try {
-      // Read image bytes
-      final imageBytes = await imageFile.readAsBytes();
-
-      // Decode image
-      final originalImage = img.decodeImage(imageBytes);
-      if (originalImage == null) {
-        return null;
-      }
-
-      // Resize to 112x112
-      final resizedImage = img.copyResize(
-        originalImage,
-        width: _inputSize,
-        height: _inputSize,
-      );
-
-      // Convert to Float32List and normalize
-      final inputData = Float32List(_inputSize * _inputSize * 3);
-      int index = 0;
-
-      for (int y = 0; y < _inputSize; y++) {
-        for (int x = 0; x < _inputSize; x++) {
-          final pixel = resizedImage.getPixel(x, y);
-
-          // Extract RGB components
-          final r = pixel.r.toDouble();
-          final g = pixel.g.toDouble();
-          final b = pixel.b.toDouble();
-
-          // Normalize to [-1, 1]
-          inputData[index++] = (r - 127.5) / 127.5;
-          inputData[index++] = (g - 127.5) / 127.5;
-          inputData[index++] = (b - 127.5) / 127.5;
-        }
-      }
-
-      return inputData;
-    } catch (e) {
-      print('❌ Error in simple preprocessing: $e');
-      return null;
-    }
-  }
-
-  // Normalize vector (L2 normalization)
   List<double> _normalizeVector(List<double> vector) {
     double sum = 0.0;
-    for (final value in vector) {
-      sum += value * value;
-    }
-
-    // Menggunakan sqrt dari dart:math
+    for (final value in vector) sum += value * value;
     final norm = sqrt(sum);
     if (norm == 0) return vector;
-
     return vector.map((value) => value / norm).toList();
   }
 
-  // Calculate cosine similarity
   double _cosineSimilarity(List<double> a, List<double> b) {
-    if (a.length != b.length) {
-      throw Exception('Vectors must have same length (${a.length} vs ${b.length})');
-    }
-
+    if (a.length != b.length) return 0.0;
     double dotProduct = 0.0;
     double normA = 0.0;
     double normB = 0.0;
-
     for (int i = 0; i < a.length; i++) {
       dotProduct += a[i] * b[i];
       normA += a[i] * a[i];
       normB += b[i] * b[i];
     }
-
-    // Menggunakan sqrt dari dart:math
     normA = sqrt(normA);
     normB = sqrt(normB);
-
-    if (normA == 0 || normB == 0) {
-      return 0.0;
-    }
-
+    if (normA == 0 || normB == 0) return 0.0;
     return dotProduct / (normA * normB);
   }
 
-  // Calculate Euclidean distance (alternative metric)
-  double _euclideanDistance(List<double> a, List<double> b) {
-    if (a.length != b.length) {
-      throw Exception('Vectors must have same length');
-    }
-
-    double sum = 0.0;
-    for (int i = 0; i < a.length; i++) {
-      final diff = a[i] - b[i];
-      sum += diff * diff;
-    }
-
-    return sqrt(sum);
-  }
-
-  // Get similarity as percentage (0-100%)
-  String getSimilarityPercentage(double similarity) {
-    final percentage = (similarity * 100).clamp(0, 100);
-    return '${percentage.toStringAsFixed(1)}%';
-  }
-
-  // Check if similarity meets threshold
-  bool isSimilarityAboveThreshold(double similarity) {
-    return similarity >= _threshold;
-  }
-
-  // Clean up resources
   void dispose() {
     _faceDetector.close();
     _interpreter?.close();

@@ -3,15 +3,15 @@ import 'package:provider/provider.dart';
 import 'package:suara_kita/presentation/providers/voting_provider.dart';
 import 'package:suara_kita/core/constants/colors.dart';
 import 'package:suara_kita/presentation/widgets/common/primary_button.dart';
-import 'package:suara_kita/data/models/election_model.dart'; // Import Model
+import 'package:suara_kita/data/models/election_model.dart';
 
 class VotingWelcomePage extends StatefulWidget {
   static const routeName = '/voting-welcome';
-  final ElectionModel election; // ✅ Data diterima dari constructor
+  final ElectionModel election;
 
   const VotingWelcomePage({
     super.key,
-    required this.election, // ✅ Wajib diisi
+    required this.election,
   });
 
   @override
@@ -19,13 +19,25 @@ class VotingWelcomePage extends StatefulWidget {
 }
 
 class _VotingWelcomePageState extends State<VotingWelcomePage> {
-  // Tidak perlu initState untuk setElection di sini
-  // Kita setElection saat tombol ditekan saja (Lazy Loading)
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ PANGGIL SET ELECTION SAAT HALAMAN DIBUKA
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<VotingProvider>();
+
+      // Menggunakan NIM Testing '231401034' (Sesuai Data Supabase Albert)
+      // Nanti jika sudah production, ambil dari AuthProvider.user.nim
+      print("DEBUG: Menginisialisasi Voting Session untuk NIM 231401034...");
+      provider.setElection(widget.election, '231401034');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ FIX: HANYA panggil VotingProvider. ElectionProvider DIHAPUS.
     final votingProvider = context.watch<VotingProvider>();
+    final hasVoted = votingProvider.hasAlreadyVoted;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -41,14 +53,18 @@ class _VotingWelcomePageState extends State<VotingWelcomePage> {
         ),
       ),
       body: SafeArea(
-        child: Column(
+        child: votingProvider.isLoading
+            ? const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen))
+            : Column(
           children: [
             // Election Info Card
             Container(
               margin: const EdgeInsets.all(20),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
+                gradient: hasVoted
+                    ? const LinearGradient(colors: [Colors.grey, Colors.black54])
+                    : AppColors.primaryGradient,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
@@ -61,7 +77,7 @@ class _VotingWelcomePageState extends State<VotingWelcomePage> {
               child: Column(
                 children: [
                   Text(
-                    widget.election.title, // ✅ Pakai widget.election
+                    widget.election.title,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
@@ -70,29 +86,37 @@ class _VotingWelcomePageState extends State<VotingWelcomePage> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    widget.election.description,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 14,
+                  if (hasVoted)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle, color: AppColors.primaryGreen, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            "ANDA SUDAH MEMILIH",
+                            style: TextStyle(
+                              color: AppColors.primaryGreen,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Text(
+                      widget.election.description,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildStatusChip(
-                        'Dimulai',
-                        widget.election.startDate,
-                      ),
-                      const SizedBox(width: 12),
-                      _buildStatusChip(
-                        'Berakhir',
-                        widget.election.endDate,
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -114,22 +138,14 @@ class _VotingWelcomePageState extends State<VotingWelcomePage> {
                           color: AppColors.darkGreen,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Ikuti langkah-langkah berikut untuk memberikan suara Anda dengan aman dan terverifikasi.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.grey,
-                        ),
-                      ),
                       const SizedBox(height: 30),
 
-                      _buildStepCard(1, Icons.face_retouching_natural_rounded, 'Verifikasi Wajah', 'Face recognition', AppColors.primaryGreen),
-                      _buildStepCard(2, Icons.qr_code_scanner_rounded, 'Scan KTM', 'Validasi QR Code', AppColors.darkGreen),
-                      _buildStepCard(3, Icons.gavel_rounded, 'Persetujuan', 'Syarat ketentuan', const Color(0xFF4CAF50)),
-                      _buildStepCard(4, Icons.how_to_vote_rounded, 'Pilih Kandidat', 'Tentukan pilihan', const Color(0xFF2196F3)),
-                      _buildStepCard(5, Icons.check_circle_rounded, 'Konfirmasi', 'Review pilihan', const Color(0xFFFF9800)),
-                      _buildStepCard(6, Icons.celebration_rounded, 'Selesai', 'Vote terkirim', const Color(0xFF9C27B0)),
+                      _buildStepCard(1, Icons.face_retouching_natural_rounded, 'Verifikasi Wajah', 'Face recognition', AppColors.primaryGreen, hasVoted),
+                      _buildStepCard(2, Icons.qr_code_scanner_rounded, 'Scan KTM', 'Validasi QR Code', AppColors.darkGreen, hasVoted),
+                      _buildStepCard(3, Icons.gavel_rounded, 'Persetujuan', 'Syarat ketentuan', const Color(0xFF4CAF50), hasVoted),
+                      _buildStepCard(4, Icons.how_to_vote_rounded, 'Pilih Kandidat', 'Tentukan pilihan', const Color(0xFF2196F3), hasVoted),
+                      _buildStepCard(5, Icons.check_circle_rounded, 'Konfirmasi', 'Review pilihan', const Color(0xFFFF9800), hasVoted),
+                      _buildStepCard(6, Icons.celebration_rounded, 'Selesai', 'Vote terkirim', const Color(0xFF9C27B0), hasVoted),
 
                       const SizedBox(height: 40),
                     ],
@@ -141,29 +157,29 @@ class _VotingWelcomePageState extends State<VotingWelcomePage> {
             // Start Button
             Container(
               padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
+                ],
+              ),
               child: Column(
                 children: [
                   PrimaryButton(
-                    onPressed: () async {
-                      // Init Session di Provider
-                      final userNim = context.read<VotingProvider>().voterNim ?? '231401034';
-
-                      // ✅ Set Election Data ke Provider saat tombol ditekan
-                      await votingProvider.setElection(widget.election, userNim);
-
+                    onPressed: hasVoted
+                        ? null // ⛔ DISABLE TOMBOL
+                        : () {
                       votingProvider.startVotingSession();
-                      if (context.mounted) {
-                        Navigator.pushNamed(context, '/voting-face-verify');
-                      }
+                      Navigator.pushNamed(context, '/voting-face-verify');
                     },
-                    text: 'MULAI VOTING',
+                    text: hasVoted ? 'SUDAH MEMBERIKAN SUARA' : 'MULAI VOTING',
                     isLoading: votingProvider.isLoading,
                   ),
                   const SizedBox(height: 10),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text(
-                      'Kembali ke Daftar Pemilihan',
+                      'Kembali',
                       style: TextStyle(color: AppColors.grey),
                     ),
                   ),
@@ -176,7 +192,10 @@ class _VotingWelcomePageState extends State<VotingWelcomePage> {
     );
   }
 
-  Widget _buildStepCard(int number, IconData icon, String title, String desc, Color color) {
+  // ... (Widget _buildStepCard sama persis, tidak perlu diubah)
+  Widget _buildStepCard(int number, IconData icon, String title, String desc, Color color, bool isDisabled) {
+    final displayColor = isDisabled ? Colors.grey : color;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -190,40 +209,26 @@ class _VotingWelcomePageState extends State<VotingWelcomePage> {
             spreadRadius: 1,
           ),
         ],
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: displayColor.withOpacity(0.2)),
       ),
       child: Row(
         children: [
           Container(
             width: 50, height: 50,
-            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-            child: Center(child: Text('$number', style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold))),
+            decoration: BoxDecoration(color: displayColor.withOpacity(0.1), shape: BoxShape.circle),
+            child: Center(child: Text('$number', style: TextStyle(color: displayColor, fontSize: 20, fontWeight: FontWeight.bold))),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [Icon(icon, color: color, size: 18), const SizedBox(width: 8), Text(title, style: TextStyle(color: AppColors.darkGreen, fontSize: 16, fontWeight: FontWeight.w600))]),
+                Row(children: [Icon(icon, color: displayColor, size: 18), const SizedBox(width: 8), Text(title, style: TextStyle(color: isDisabled ? Colors.grey : AppColors.darkGreen, fontSize: 16, fontWeight: FontWeight.w600))]),
                 const SizedBox(height: 4),
                 Text(desc, style: TextStyle(color: AppColors.grey, fontSize: 12)),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(String label, DateTime date) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-      child: Row(
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
-          const SizedBox(width: 6),
-          Text('${date.day}/${date.month}/${date.year}', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11)),
         ],
       ),
     );

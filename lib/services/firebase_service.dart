@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'package:suara_kita/data/models/user_model.dart';
-import 'dart:convert'; // Untuk base64 encode/decode
-import 'dart:typed_data'; // Untuk Float32List
+import 'package:suara_kita/data/models/candidate_model.dart';
+import 'package:suara_kita/data/models/election_model.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -128,7 +130,7 @@ class FirebaseService {
 
   // ========== ELECTION OPERATIONS ==========
 
-  // Get all elections
+  // Get all elections (old version - returns QuerySnapshot)
   static Stream<QuerySnapshot> getElections() {
     try {
       return electionsCollection
@@ -140,7 +142,23 @@ class FirebaseService {
     }
   }
 
-  // Get active elections
+  // Get all elections (new version - returns List<ElectionModel>)
+  static Stream<List<ElectionModel>> getElectionsStream() {
+    return electionsCollection
+        .orderBy('startDate', descending: true) // Yang terbaru di atas
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        // Tambahkan print ini untuk debugging di console!
+        print("Data Firestore: ${data['title']} - ID: ${doc.id}");
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
+  }
+
+  // Get active elections (old version)
   static Stream<QuerySnapshot> getActiveElections() {
     try {
       final now = DateTime.now();
@@ -155,7 +173,24 @@ class FirebaseService {
     }
   }
 
-  // Get election by ID
+  // Get active elections (new version)
+  static Stream<List<ElectionModel>> getActiveElectionsStream() {
+    final now = DateTime.now();
+    return electionsCollection
+        .where('status', isEqualTo: 'ONGOING')
+        .where('endDate', isGreaterThan: now)
+        .orderBy('endDate')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
+  }
+
+  // Get election by ID (old version)
   static Future<DocumentSnapshot> getElectionById(String electionId) async {
     try {
       return await electionsCollection.doc(electionId).get();
@@ -165,9 +200,163 @@ class FirebaseService {
     }
   }
 
+  // Get election by ID returning ElectionModel
+  static Future<ElectionModel?> getElectionModelById(String electionId) async {
+    try {
+      final doc = await electionsCollection.doc(electionId).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting election model: $e');
+      return null;
+    }
+  }
+
+  // Add new election
+  static Future<void> addElection(ElectionModel election) async {
+    try {
+      await electionsCollection.doc(election.id).set(election.toMap());
+      print('✅ Election added successfully with ID: ${election.id}');
+    } catch (e) {
+      print('❌ Error adding election: $e');
+      throw Exception('Gagal menambah pemilihan: $e');
+    }
+  }
+
+  // Update election
+  static Future<void> updateElection(String electionId, ElectionModel election) async {
+    try {
+      await electionsCollection.doc(electionId).update(election.toMap());
+      print('✅ Election $electionId updated successfully');
+    } catch (e) {
+      print('❌ Error updating election: $e');
+      throw Exception('Gagal mengupdate pemilihan: $e');
+    }
+  }
+
+// Delete election (with cascade delete for candidates)
+  static Future<void> deleteElection(String electionId) async {
+    try {
+      // Check if election has votes
+      final votesSnapshot = await votesCollection
+          .where('electionId', isEqualTo: electionId)
+          .limit(1)
+          .get();
+
+      if (votesSnapshot.docs.isNotEmpty) {
+        throw Exception('Pemilihan memiliki vote dan tidak dapat dihapus');
+      }
+
+      // Delete all candidates in this election first
+      final candidatesSnapshot = await candidatesCollection
+          .where('electionId', isEqualTo: electionId)
+          .get();
+
+      final batch = _firestore.batch();
+      for (final candidateDoc in candidatesSnapshot.docs) {
+        batch.delete(candidateDoc.reference);
+      }
+
+      // Delete the election
+      batch.delete(electionsCollection.doc(electionId));
+
+      await batch.commit();
+      print('✅ Election $electionId and its candidates deleted successfully');
+    } catch (e) {
+      print('❌ Error deleting election: $e');
+      throw Exception('Gagal menghapus pemilihan: $e');
+    }
+  }
+
+  // Toggle election status (Active/Inactive)
+  static Future<void> toggleElectionStatus(String electionId, bool isActive) async {
+    try {
+      final status = isActive ? 'ACTIVE' : 'INACTIVE';
+      await electionsCollection.doc(electionId).update({
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print('✅ Election $electionId status updated to: $status');
+    } catch (e) {
+      print('❌ Error toggling election status: $e');
+      throw Exception('Gagal mengubah status pemilihan: $e');
+    }
+  }
+
+  // Get upcoming elections
+  static Stream<List<ElectionModel>> getUpcomingElectionsStream() {
+    final now = DateTime.now();
+    return electionsCollection
+        .where('startDate', isGreaterThan: now)
+        .orderBy('startDate')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
+  }
+
+  // Get completed elections
+  static Stream<List<ElectionModel>> getCompletedElectionsStream() {
+    final now = DateTime.now();
+    return electionsCollection
+        .where('endDate', isLessThan: now)
+        .orderBy('endDate', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
+  }
+
+  // Get election statistics
+  static Future<Map<String, dynamic>> getElectionStats(String electionId) async {
+    try {
+      final electionDoc = await electionsCollection.doc(electionId).get();
+      if (!electionDoc.exists) {
+        throw Exception('Pemilihan tidak ditemukan');
+      }
+
+      final candidatesSnapshot = await candidatesCollection
+          .where('electionId', isEqualTo: electionId)
+          .get();
+
+      final votesSnapshot = await votesCollection
+          .where('electionId', isEqualTo: electionId)
+          .get();
+
+      final totalVotes = votesSnapshot.docs.length;
+      final totalCandidates = candidatesSnapshot.docs.length;
+
+      return {
+        'electionId': electionId,
+        'totalCandidates': totalCandidates,
+        'totalVotes': totalVotes,
+        'voterTurnout': totalVotes, // TODO: Calculate percentage of registered users
+        'lastUpdated': DateTime.now(),
+      };
+    } catch (e) {
+      print('❌ Error getting election stats: $e');
+      return {
+        'error': e.toString(),
+        'lastUpdated': DateTime.now(),
+      };
+    }
+  }
+
   // ========== CANDIDATE OPERATIONS ==========
 
-  // Get candidates for an election
+  // Get candidates for an election (old version - returns QuerySnapshot)
   static Stream<QuerySnapshot> getCandidates(String electionId) {
     try {
       return candidatesCollection
@@ -180,6 +369,21 @@ class FirebaseService {
     }
   }
 
+  // Get candidates for an election (new version - returns List<CandidateModel>)
+  static Stream<List<CandidateModel>> getCandidatesStream(String electionId) {
+    return candidatesCollection
+        .where('electionId', isEqualTo: electionId)
+        .orderBy('candidateNumber') // String '01', '02', dst
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id; // Inject ID dokumen ke dalam model
+        return CandidateModel.fromMap(data);
+      }).toList();
+    });
+  }
+
   // Get candidate by ID
   static Future<DocumentSnapshot> getCandidateById(String candidateId) async {
     try {
@@ -187,6 +391,22 @@ class FirebaseService {
     } catch (e) {
       print('❌ Error getting candidate: $e');
       throw Exception('Gagal mengambil data kandidat: $e');
+    }
+  }
+
+  // Get candidate by ID returning CandidateModel
+  static Future<CandidateModel?> getCandidateModelById(String candidateId) async {
+    try {
+      final doc = await candidatesCollection.doc(candidateId).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return CandidateModel.fromMap(data);
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting candidate model: $e');
+      return null;
     }
   }
 
@@ -211,6 +431,70 @@ class FirebaseService {
       print('❌ Error getting candidate details: $e');
       return null;
     }
+  }
+
+  // Add new candidate (Updated version with custom ID generation)
+  static Future<void> addCandidate(CandidateModel candidate) async {
+    try {
+      // Generate candidate ID menggunakan electionId dan candidateNumber
+      final candidateId = '${candidate.electionId}_${candidate.candidateNumber.padLeft(3, '0')}';
+
+      // Update candidate dengan ID yang sudah dibuat
+      final candidateWithId = candidate.copyWith(id: candidateId);
+
+      await candidatesCollection.doc(candidateId).set(candidateWithId.toMap());
+      print('✅ Candidate added successfully with ID: $candidateId');
+    } catch (e) {
+      print('❌ Error adding candidate: $e');
+      throw Exception('Gagal menambah kandidat: $e');
+    }
+  }
+
+  // Update candidate
+  static Future<void> updateCandidate(String candidateId, CandidateModel candidate) async {
+    try {
+      await candidatesCollection.doc(candidateId).update(candidate.toMap());
+      print('✅ Candidate $candidateId updated successfully');
+    } catch (e) {
+      print('❌ Error updating candidate: $e');
+      throw Exception('Gagal mengupdate kandidat: $e');
+    }
+  }
+
+  // Delete candidate
+  static Future<void> deleteCandidate(String candidateId) async {
+    try {
+      // Check if candidate has votes
+      final votesSnapshot = await votesCollection
+          .where('candidateId', isEqualTo: candidateId)
+          .limit(1)
+          .get();
+
+      if (votesSnapshot.docs.isNotEmpty) {
+        throw Exception('Kandidat memiliki vote dan tidak dapat dihapus');
+      }
+
+      await _firestore.collection('candidates').doc(candidateId).delete();
+      print('✅ Candidate $candidateId deleted successfully');
+    } catch (e) {
+      print('❌ Error deleting candidate: $e');
+      throw Exception('Gagal menghapus kandidat: $e');
+    }
+  }
+
+  // Get all candidates (for admin)
+  static Stream<List<CandidateModel>> getAllCandidatesStream() {
+    return candidatesCollection
+        .orderBy('electionId')
+        .orderBy('candidateNumber')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return CandidateModel.fromMap(data);
+      }).toList();
+    });
   }
 
   // ========== VOTE OPERATIONS ==========
@@ -303,7 +587,7 @@ class FirebaseService {
     try {
       return votesCollection
           .where('electionId', isEqualTo: electionId)
-          .orderBy('timestamp', descending: true)
+          // .orderBy('timestamp', descending: true)
           .snapshots();
     } catch (e) {
       print('❌ Error getting election votes: $e');
@@ -438,7 +722,7 @@ class FirebaseService {
     }
   }
 
-  // Create new election
+  // Create new election (legacy version)
   static Future<void> createElection(Map<String, dynamic> electionData) async {
     try {
       final String electionId = electionData['id'] as String;
@@ -450,8 +734,8 @@ class FirebaseService {
     }
   }
 
-  // Add candidate to election
-  static Future<void> addCandidate(Map<String, dynamic> candidateData) async {
+  // Add candidate to election (legacy version)
+  static Future<void> addCandidateLegacy(Map<String, dynamic> candidateData) async {
     try {
       final String candidateId = candidateData['id'] as String;
       await candidatesCollection.doc(candidateId).set(candidateData);
@@ -581,9 +865,15 @@ class FirebaseService {
       final votesCount = (await votesCollection.get()).docs.length;
       final activitiesCount = (await votingActivitiesCollection.get()).docs.length;
 
+      // Get active elections count
+      final activeElections = await electionsCollection
+          .where('status', isEqualTo: 'ACTIVE')
+          .get();
+
       return {
         'users': usersCount,
         'elections': electionsCount,
+        'activeElections': activeElections.docs.length,
         'candidates': candidatesCount,
         'votes': votesCount,
         'activities': activitiesCount,
@@ -596,5 +886,236 @@ class FirebaseService {
         'lastUpdated': DateTime.now(),
       };
     }
+  }
+
+  // Backup all data (for admin)
+  static Future<Map<String, dynamic>> backupAllData() async {
+    try {
+      final users = await usersCollection.get();
+      final elections = await electionsCollection.get();
+      final candidates = await candidatesCollection.get();
+      final votes = await votesCollection.get();
+      final activities = await votingActivitiesCollection.get();
+
+      return {
+        'timestamp': DateTime.now(),
+        'users': users.docs.map((doc) => doc.data()).toList(),
+        'elections': elections.docs.map((doc) => doc.data()).toList(),
+        'candidates': candidates.docs.map((doc) => doc.data()).toList(),
+        'votes': votes.docs.map((doc) => doc.data()).toList(),
+        'activities': activities.docs.map((doc) => doc.data()).toList(),
+      };
+    } catch (e) {
+      print('❌ Error backing up data: $e');
+      throw Exception('Gagal membuat backup data: $e');
+    }
+  }
+
+  // Search elections by title
+  static Stream<List<ElectionModel>> searchElections(String query) {
+    return electionsCollection
+        .where('title', isGreaterThanOrEqualTo: query)
+        .where('title', isLessThanOrEqualTo: '$query\uf8ff')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
+  }
+
+  // Get election with candidates
+  static Future<Map<String, dynamic>> getElectionWithCandidates(String electionId) async {
+    try {
+      final election = await getElectionModelById(electionId);
+      if (election == null) {
+        throw Exception('Pemilihan tidak ditemukan');
+      }
+
+      final candidates = await candidatesCollection
+          .where('electionId', isEqualTo: electionId)
+          .get();
+
+      return {
+        'election': election.toMap(),
+        'candidates': candidates.docs.map((doc) => doc.data()).toList(),
+        'totalCandidates': candidates.docs.length,
+      };
+    } catch (e) {
+      print('❌ Error getting election with candidates: $e');
+      throw Exception('Gagal mengambil data pemilihan dengan kandidat: $e');
+    }
+  }
+
+  // Update election visibility
+  static Future<void> updateElectionVisibility(String electionId, bool isPublic) async {
+    try {
+      await electionsCollection.doc(electionId).update({
+        'isPublic': isPublic,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print('✅ Election $electionId visibility updated to: ${isPublic ? 'Public' : 'Private'}');
+    } catch (e) {
+      print('❌ Error updating election visibility: $e');
+      throw Exception('Gagal mengupdate visibilitas pemilihan: $e');
+    }
+  }
+
+  // Get election participation rate
+  static Future<double> getElectionParticipationRate(String electionId) async {
+    try {
+      final totalUsers = (await usersCollection.get()).docs.length;
+      final totalVotes = await votesCollection
+          .where('electionId', isEqualTo: electionId)
+          .get()
+          .then((snapshot) => snapshot.docs.length);
+
+      if (totalUsers == 0) return 0.0;
+      return (totalVotes / totalUsers) * 100;
+    } catch (e) {
+      print('❌ Error getting participation rate: $e');
+      return 0.0;
+    }
+  }
+
+  // Get elections stream for admin (without any filters)
+  static Stream<List<ElectionModel>> getElectionsForAdminStream() {
+    return _firestore
+        .collection('elections')
+        .orderBy('startDate', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        print("Data Firestore Admin View: ${data['title']} - ID: ${doc.id}");
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
+  }
+
+  // Get all elections with pagination
+  static Future<List<ElectionModel>> getElectionsWithPagination({
+    required int limit,
+    DocumentSnapshot? lastDocument,
+  }) async {
+    try {
+      Query query = electionsCollection
+          .orderBy('startDate', descending: true)
+          .limit(limit);
+
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+
+      final snapshot = await query.get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }).toList();
+    } catch (e) {
+      print('❌ Error getting elections with pagination: $e');
+      return [];
+    }
+  }
+
+  // Get elections by status
+  static Stream<List<ElectionModel>> getElectionsByStatus(String status) {
+    return electionsCollection
+        .where('status', isEqualTo: status)
+        .orderBy('startDate', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
+  }
+
+  // Get election by faculty filter
+  static Stream<List<ElectionModel>> getElectionsByFaculty(String faculty) {
+    return electionsCollection
+        .where('facultyFilter', isEqualTo: faculty)
+        .where('status', isEqualTo: 'ACTIVE')
+        .orderBy('startDate', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
+  }
+
+  // Check if election exists
+  static Future<bool> doesElectionExist(String electionId) async {
+    try {
+      final doc = await electionsCollection.doc(electionId).get();
+      return doc.exists;
+    } catch (e) {
+      print('❌ Error checking election existence: $e');
+      return false;
+    }
+  }
+
+  // Get election count by status
+  static Future<Map<String, int>> getElectionCountByStatus() async {
+    try {
+      final active = await electionsCollection
+          .where('status', isEqualTo: 'ACTIVE')
+          .get()
+          .then((snapshot) => snapshot.docs.length);
+
+      final upcoming = await electionsCollection
+          .where('startDate', isGreaterThan: DateTime.now())
+          .get()
+          .then((snapshot) => snapshot.docs.length);
+
+      final completed = await electionsCollection
+          .where('endDate', isLessThan: DateTime.now())
+          .get()
+          .then((snapshot) => snapshot.docs.length);
+
+      final total = await electionsCollection
+          .get()
+          .then((snapshot) => snapshot.docs.length);
+
+      return {
+        'active': active,
+        'upcoming': upcoming,
+        'completed': completed,
+        'total': total,
+      };
+    } catch (e) {
+      print('❌ Error getting election count by status: $e');
+      return {
+        'active': 0,
+        'upcoming': 0,
+        'completed': 0,
+        'total': 0,
+      };
+    }
+  }
+
+  // Get recent elections
+  static Stream<List<ElectionModel>> getRecentElections({int limit = 5}) {
+    return electionsCollection
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return ElectionModel.fromMap(data);
+      }).toList();
+    });
   }
 }

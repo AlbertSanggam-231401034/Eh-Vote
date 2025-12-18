@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:suara_kita/services/firebase_service.dart';
 import 'package:suara_kita/presentation/pages/admin/admin_scan_flow.dart';
+import 'package:suara_kita/presentation/pages/admin/manage_elections_page.dart';
+import 'package:suara_kita/presentation/pages/admin/manage_results_page.dart'; // ✅ Import Baru
 import 'package:suara_kita/data/models/user_model.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -21,7 +23,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void initState() {
     super.initState();
     _currentUser = widget.currentUser;
-    // Delay refresh slightly to ensure widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshUserData();
     });
@@ -37,7 +38,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         setState(() {
           _currentUser = updatedUser;
         });
-        print("Admin Data Refreshed: Face URL=${_currentUser.faceImageUrl} KTM URL=${_currentUser.ktmImageUrl}");
       }
     } catch (e) {
       print("Error refreshing user data: $e");
@@ -48,15 +48,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ FIX LOGIC: Cek faceImageUrl dan ktmImageUrl (String), BUKAN faceEmbedding (List)
-    bool isFaceMissing = _currentUser.faceImageUrl.isEmpty; // Cek URL gambar wajah
-    bool isKtmMissing = _currentUser.ktmImageUrl.isEmpty;   // Cek URL gambar KTM
-
-    // Alternatif: cek faceData jika ingin lebih spesifik
-    // bool isFaceMissing = _currentUser.faceData == null ||
-    //                      _currentUser.faceData.isEmpty ||
-    //                      _currentUser.faceData == 'ADMIN_SCAN_REQUIRED';
-
+    bool isFaceMissing = _currentUser.faceImageUrl.isEmpty;
+    bool isKtmMissing = _currentUser.ktmImageUrl.isEmpty;
     bool needsScan = isFaceMissing || isKtmMissing;
 
     return Scaffold(
@@ -73,13 +66,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          if (needsScan)
-            IconButton(
-              icon: const Icon(Icons.warning_amber_rounded),
-              onPressed: () => _showScanReminder(context),
-              tooltip: 'Lengkapi Profil',
-              color: Colors.orangeAccent,
-            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _refreshUserData,
@@ -131,8 +117,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           ),
                           if (_isLoading)
                             const SizedBox(
-                              width: 20, height: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2),
                             ),
                         ],
                       ),
@@ -140,59 +128,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       Text(
                         needsScan
                             ? 'Lengkapi profil Anda untuk dapat voting'
-                            : 'Profil lengkap. Anda siap mengelola sistem.',
+                            : 'Profil lengkap. Sistem siap digunakan.',
                         style: GoogleFonts.almarai(
                           fontSize: 14,
                           color: Colors.white.withOpacity(0.9),
                         ),
                       ),
-
-                      // Menampilkan detail status data admin
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            _currentUser.faceImageUrl.isNotEmpty
-                                ? Icons.check_circle
-                                : Icons.cancel,
-                            // ✅ FIX: Gunakan Color langsung bukan Colors.green[200] yang nullable
-                            color: _currentUser.faceImageUrl.isNotEmpty
-                                ? const Color(0xFFA5D6A7) // Hijau muda
-                                : const Color(0xFFEF9A9A), // Merah muda
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Foto Wajah: ${_currentUser.faceImageUrl.isNotEmpty ? 'Ada' : 'Belum'}',
-                            style: GoogleFonts.almarai(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.8),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Icon(
-                            _currentUser.ktmImageUrl.isNotEmpty
-                                ? Icons.check_circle
-                                : Icons.cancel,
-                            // ✅ FIX: Gunakan Color langsung bukan Colors.red[200] yang nullable
-                            color: _currentUser.ktmImageUrl.isNotEmpty
-                                ? const Color(0xFFA5D6A7) // Hijau muda
-                                : const Color(0xFFEF9A9A), // Merah muda
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Foto KTM: ${_currentUser.ktmImageUrl.isNotEmpty ? 'Ada' : 'Belum'}',
-                            style: GoogleFonts.almarai(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      if (needsScan) ...[
-                        const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                      if (needsScan)
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -202,14 +145,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               foregroundColor: const Color(0xFF00C64F),
                             ),
                             child: Text(
-                              'LENGKAPI PROFIL SEKARANG',
+                              'LENGKAPI PROFIL',
                               style: GoogleFonts.almarai(
-                                fontWeight: FontWeight.bold,
-                              ),
+                                  fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -235,28 +176,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   mainAxisSpacing: 12,
                   children: [
                     _ActionCard(
-                      title: 'Lihat Pemilihan',
+                      title: 'Kelola Pemilihan',
                       icon: Icons.how_to_vote_rounded,
                       color: const Color(0xFF00C64F),
-                      onTap: () {},
-                    ),
-                    _ActionCard(
-                      title: 'Kelola User',
-                      icon: Icons.people_rounded,
-                      color: const Color(0xFF2196F3),
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ManageElectionsPage(),
+                          ),
+                        );
+                      },
                     ),
                     _ActionCard(
                       title: 'Hasil Voting',
                       icon: Icons.bar_chart_rounded,
                       color: const Color(0xFF9C27B0),
-                      onTap: () {},
-                    ),
-                    _ActionCard(
-                      title: 'Pengaturan',
-                      icon: Icons.settings_rounded,
-                      color: const Color(0xFFFF9800),
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ManageResultsPage(),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -265,7 +208,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
                 // Statistics
                 Text(
-                  'Statistik',
+                  'Statistik Global',
                   style: GoogleFonts.unbounded(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -274,7 +217,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 ),
                 const SizedBox(height: 16),
 
-                // Placeholder Statistik
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -289,61 +231,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    children: [
-                      const Icon(Icons.analytics_rounded, size: 50, color: Colors.grey),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Fitur statistik dalam pengembangan',
-                        style: GoogleFonts.almarai(
-                          color: Colors.grey,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                  child: StreamBuilder<Map<String, dynamic>>(
+                    stream: _getDatabaseStatsStream(),
+                    builder: (context, snapshot) {
+                      final stats = snapshot.data ?? {'users': 0, 'votes': 0};
+                      return Column(
+                        children: [
+                          _StatItem(
+                            icon: Icons.people_alt_rounded,
+                            label: 'Total User',
+                            value: '${stats['users']}',
+                            color: Colors.blue,
+                          ),
+                          const SizedBox(height: 12),
+                          _StatItem(
+                            icon: Icons.how_to_vote,
+                            label: 'Total Suara Masuk',
+                            value: '${stats['votes']}',
+                            color: Colors.orange,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
-
-                // Debug Info (Hanya untuk development)
-                if (_currentUser.faceImageUrl.isNotEmpty || _currentUser.ktmImageUrl.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(top: 20),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Info Data Admin:',
-                          style: GoogleFonts.almarai(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Face URL: ${_currentUser.faceImageUrl.isNotEmpty ? '${_currentUser.faceImageUrl.substring(0, _currentUser.faceImageUrl.length > 30 ? 30 : _currentUser.faceImageUrl.length)}...' : 'Tidak ada'}',
-                          style: GoogleFonts.almarai(
-                            fontSize: 10,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        Text(
-                          'KTM URL: ${_currentUser.ktmImageUrl.isNotEmpty ? '${_currentUser.ktmImageUrl.substring(0, _currentUser.ktmImageUrl.length > 30 ? 30 : _currentUser.ktmImageUrl.length)}...' : 'Tidak ada'}',
-                          style: GoogleFonts.almarai(
-                            fontSize: 10,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
                 const SizedBox(height: 30),
               ],
             ),
@@ -353,39 +264,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  void _showScanReminder(BuildContext context) {
-    final isFaceMissing = _currentUser.faceImageUrl.isEmpty;
-    final isKtmMissing = _currentUser.ktmImageUrl.isEmpty;
-
-    String message = '';
-    if (isFaceMissing && isKtmMissing) {
-      message = 'Anda perlu melengkapi scan wajah dan KTM.';
-    } else if (isFaceMissing) {
-      message = 'Anda perlu melengkapi scan wajah.';
-    } else {
-      message = 'Anda perlu melengkapi scan KTM.';
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Lengkapi Profil Admin'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('NANTI'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _startScanFlow(context);
-            },
-            child: const Text('LENGKAPI'),
-          ),
-        ],
-      ),
-    );
+  Stream<Map<String, dynamic>> _getDatabaseStatsStream() {
+    return Stream.periodic(const Duration(seconds: 15), (_) {
+      return {};
+    }).asyncMap((_) async {
+      try {
+        return await FirebaseService.getDatabaseStats();
+      } catch (e) {
+        return {'users': 0, 'votes': 0};
+      }
+    });
   }
 
   Future<void> _startScanFlow(BuildContext context) async {
@@ -399,9 +287,33 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   void _logout(BuildContext context) async {
-    await FirebaseService.signOut();
-    if (!context.mounted) return;
-    Navigator.pushReplacementNamed(context, '/welcome');
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konfirmasi Logout'),
+        content: const Text('Apakah Anda yakin ingin logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('BATAL'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('LOGOUT'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await FirebaseService.signOut();
+      if (!context.mounted) return;
+      Navigator.pushReplacementNamed(context, '/welcome');
+    }
   }
 }
 
@@ -422,32 +334,64 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(height: 8),
+              Icon(icon, color: color, size: 32),
+              const SizedBox(height: 12),
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: GoogleFonts.almarai(fontWeight: FontWeight.bold),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: GoogleFonts.almarai(color: Colors.grey[700]),
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.unbounded(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }

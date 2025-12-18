@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:suara_kita/core/constants/colors.dart';
+import 'package:suara_kita/data/models/user_model.dart'; // ✅ Import User Model
 import 'package:suara_kita/presentation/providers/voting_provider.dart';
 import 'package:suara_kita/presentation/widgets/common/primary_button.dart';
+import 'package:suara_kita/services/firebase_service.dart'; // ✅ Import Firebase Service
 
 class VotingSuccessPage extends StatefulWidget {
   const VotingSuccessPage({super.key});
@@ -177,7 +179,7 @@ class _VotingSuccessPageState extends State<VotingSuccessPage>
                                 Text(
                                   voteRecord?.voteId ?? 'VOTE_${DateTime.now().millisecondsSinceEpoch}',
                                   style: const TextStyle(
-                                    fontSize: 14, // Ukuran font disesuaikan agar tidak overflow
+                                    fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.darkGreen,
                                     fontFamily: 'monospace',
@@ -293,16 +295,39 @@ class _VotingSuccessPageState extends State<VotingSuccessPage>
     );
   }
 
-  void _returnToHome(VotingProvider provider, BuildContext context) {
-    // Reset voting provider state
+  Future<void> _returnToHome(VotingProvider provider, BuildContext context) async {
+    // 1. Simpan NIM sebelum di-reset
+    final nim = provider.voterNim;
+
+    // 2. Reset provider
     provider.reset();
 
-    // Clear navigation stack and go to home
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/home',
-          (route) => false, // Remove semua route sebelumnya
-    );
+    // 3. Ambil data user terbaru dari Firebase (agar status hasVoted terupdate di Home)
+    User? updatedUser;
+    if (nim != null) {
+      try {
+        updatedUser = await FirebaseService.getUserByNim(nim);
+      } catch (e) {
+        print("Error fetching updated user: $e");
+      }
+    }
+
+    // 4. Navigasi ke Home dengan membawa Data User
+    if (updatedUser != null && context.mounted) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/home',
+            (route) => false,
+        arguments: updatedUser, // ✅ KIRIM DATA USER KE HOME
+      );
+    } else if (context.mounted) {
+      // Fallback jika gagal ambil user (sangat jarang terjadi), kembalikan ke Login biar aman
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/login',
+            (route) => false,
+      );
+    }
   }
 
   String _formatTime(DateTime dateTime) {

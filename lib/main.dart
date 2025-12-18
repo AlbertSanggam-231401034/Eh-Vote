@@ -114,31 +114,39 @@ class MyApp extends StatelessWidget {
         // Home Page Logic
           case '/home':
             final args = settings.arguments;
+
+            // 1. Jika Login Normal (args dikirim dari Login Page)
             if (args is User) {
               return MaterialPageRoute(
                 builder: (context) => HomePage(currentUser: args),
               );
             }
+
+            // 2. Jika Hot Restart (Fallback ke Data Testing Supabase Kamu)
+            // ✅ FIX: Menggunakan Link Supabase Asli agar Face Verify tidak Error
             return MaterialPageRoute(
               builder: (context) => HomePage(
                 currentUser: User(
                   nim: '231401034',
-                  fullName: 'User Testing',
-                  role: UserRole.voter,
-                  hasVoted: false,
+                  fullName: 'Albert Sanggam Nalom Sinurat',
+                  role: UserRole.voter, // Tetap voter agar bisa tes voting
+                  hasVoted: false, // Set false untuk tes, true untuk tes UI sudah vote
                   faceEmbedding: [],
-                  faculty: 'Ilmu Komputer',
-                  major: 'Teknologi Informasi',
-                  ktmImageUrl: '',
-                  faceImageUrl: '',
+                  faculty: 'Fakultas Ilmu Komputer dan Teknologi Informasi (Fasilkom-TI)',
+                  major: 'Ilmu Komputer',
+
+                  // 👇 URL INI PENTING UNTUK FACE RECOGNITION
+                  faceImageUrl: 'https://bygrusoabptiyhmqayqx.supabase.co/storage/v1/object/public/face-images/face_231401034_1765966990620.jpg',
+                  ktmImageUrl: 'https://bygrusoabptiyhmqayqx.supabase.co/storage/v1/object/public/ktm-images/ktm_231401034_1765967001846.jpg',
+
                   createdAt: DateTime.now(),
                   gender: 'Laki-laki',
-                  placeOfBirth: 'Medan',
-                  dateOfBirth: DateTime(2000, 1, 1),
-                  phoneNumber: '081234567890',
+                  placeOfBirth: 'Lubuk Pakam',
+                  dateOfBirth: DateTime(2005, 9, 22),
+                  phoneNumber: '081278093204',
                   password: 'dummy',
-                  faceData: '',
-                  ktmData: '',
+                  faceData: 'face_embedding_231401034',
+                  ktmData: 'KTM_1765967004156',
                 ),
               ),
             );
@@ -190,11 +198,10 @@ class MyApp extends StatelessWidget {
               builder: (context) => AdminScanFlow(adminNim: args['adminNim']),
             );
 
-        // ✅ VOTING FLOW (FIXED)
+        // Voting Flow
           case '/voting-welcome':
             final election = settings.arguments as ElectionModel;
             return MaterialPageRoute(
-              // Hapus const karena 'election' adalah variabel dinamis
               builder: (context) => VotingWelcomePage(election: election),
             );
 

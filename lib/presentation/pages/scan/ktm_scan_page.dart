@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:suara_kita/services/storage_service.dart';
-import 'package:suara_kita/presentation/pages/scan/camera_page.dart'; // Pastikan import CameraPage
+import 'package:suara_kita/presentation/pages/scan/camera_page.dart';
 
 class KtmScanPage extends StatefulWidget {
   final String nim;
@@ -44,8 +44,21 @@ class _KtmScanPageState extends State<KtmScanPage> {
       );
 
       if (imageFile != null) {
-        // Upload ke Supabase
-        final String imageUrl = await StorageService.uploadKtmImage(imageFile, widget.nim);
+        // Upload ke Supabase - SEKARANG MENANGANI NULLABLE
+        final String? imageUrl = await StorageService.uploadKtmImage(imageFile, widget.nim);
+
+        if (imageUrl == null) {
+          setState(() {
+            _isScanning = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal mengupload foto KTM'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
 
         // Scan barcode (simulated for now)
         final String? barcodeData = await StorageService.scanBarcode();
