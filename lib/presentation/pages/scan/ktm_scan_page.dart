@@ -2,8 +2,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:suara_kita/services/storage_service.dart';
 import 'package:suara_kita/presentation/pages/scan/camera_page.dart';
+import 'package:suara_kita/presentation/providers/signup_provider.dart';
+import 'package:suara_kita/core/constants/colors.dart';
 
 class KtmScanPage extends StatefulWidget {
   final String nim;
@@ -24,6 +27,7 @@ class _KtmScanPageState extends State<KtmScanPage> {
   bool _isSuccess = false;
   String? _imageUrl;
   String? _barcodeData;
+  File? _ktmFile; // Menyimpan file lokal untuk dikirim ke provider
 
   Future<void> _scanKTM() async {
     setState(() {
@@ -31,11 +35,11 @@ class _KtmScanPageState extends State<KtmScanPage> {
     });
 
     try {
-      // Buka in-app camera
+      // 1. Buka in-app camera
       final File? imageFile = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => CameraPage(
+          builder: (context) => const CameraPage(
             title: 'Scan KTM',
             description: 'Pastikan KTM dalam kondisi baik dan barcode terbaca jelas',
             isFaceScan: false,
@@ -44,23 +48,16 @@ class _KtmScanPageState extends State<KtmScanPage> {
       );
 
       if (imageFile != null) {
-        // Upload ke Supabase - SEKARANG MENANGANI NULLABLE
+        // 2. Upload foto KTM
         final String? imageUrl = await StorageService.uploadKtmImage(imageFile, widget.nim);
 
         if (imageUrl == null) {
-          setState(() {
-            _isScanning = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Gagal mengupload foto KTM'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          if (mounted) setState(() => _isScanning = false);
+          _showSnackBar('Gagal mengupload foto KTM', Colors.red);
           return;
         }
 
-        // Scan barcode (simulated for now)
+        // 3. Scan barcode (Simulasi data barcode)
         final String? barcodeData = await StorageService.scanBarcode();
 
         setState(() {
@@ -68,34 +65,54 @@ class _KtmScanPageState extends State<KtmScanPage> {
           _isSuccess = true;
           _imageUrl = imageUrl;
           _barcodeData = barcodeData;
+          _ktmFile = imageFile;
         });
 
-        // Call callback dengan kedua data
+        // Tetap jalankan callback bawaan jika diperlukan
         if (barcodeData != null) {
           widget.onKtmScanned(imageUrl, barcodeData);
         }
       } else {
-        setState(() {
-          _isScanning = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tidak ada foto yang diambil'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        if (mounted) setState(() => _isScanning = false);
+        _showSnackBar('Tidak ada foto yang diambil', Colors.orange);
       }
     } catch (e) {
-      setState(() {
-        _isScanning = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) setState(() => _isScanning = false);
+      _showSnackBar('Error: $e', Colors.red);
     }
+  }
+
+  // --- FUNGSI PENDAFTARAN FINAL ---
+  Future<void> _finishSignup() async {
+    final provider = context.read<SignupProvider>();
+
+    if (_ktmFile == null || _barcodeData == null) {
+      _showSnackBar('Data KTM tidak lengkap', Colors.orange);
+      return;
+    }
+
+    try {
+      // 1. Isi data KTM ke provider
+      provider.setKtmData(_barcodeData!, _ktmFile!);
+
+      // 2. Eksekusi pendaftaran final ke Firebase/Database
+      final success = await provider.completeSignup();
+
+      if (success && mounted) {
+        // Pindah ke halaman sukses dan bersihkan semua stack navigasi
+        Navigator.pushNamedAndRemoveUntil(context, '/signup-success', (route) => false);
+      } else if (mounted) {
+        _showSnackBar(provider.errorMessage ?? 'Gagal menyimpan data pendaftaran', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Terjadi kesalahan fatal: $e', Colors.red);
+    }
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
   }
 
   void _retryScan() {
@@ -103,6 +120,7 @@ class _KtmScanPageState extends State<KtmScanPage> {
       _isSuccess = false;
       _imageUrl = null;
       _barcodeData = null;
+      _ktmFile = null;
     });
   }
 
@@ -110,6 +128,7 @@ class _KtmScanPageState extends State<KtmScanPage> {
   Widget build(BuildContext context) {
     const Color kPrimaryGreen = Color(0xFF00C64F);
     const Color kDarkGreen = Color(0xFF002D12);
+    final isFinalLoading = context.watch<SignupProvider>().isLoading;
 
     return Scaffold(
       body: Container(
@@ -135,7 +154,7 @@ class _KtmScanPageState extends State<KtmScanPage> {
                   ),
                   Expanded(
                     child: LinearProgressIndicator(
-                      value: _isSuccess ? 1.0 : 0.5,
+                      value: _isSuccess ? 1.0 : 0.75,
                       backgroundColor: Colors.white.withOpacity(0.3),
                       valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
@@ -152,7 +171,6 @@ class _KtmScanPageState extends State<KtmScanPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Spacer(flex: 1),
-                  // Title
                   Text(
                     'Scan KTM',
                     textAlign: TextAlign.center,
@@ -164,7 +182,7 @@ class _KtmScanPageState extends State<KtmScanPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Ambil foto KTM dan scan barcode',
+                    'Langkah terakhir: Verifikasi identitas mahasiswa',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.almarai(
                       fontSize: 14,
@@ -181,7 +199,7 @@ class _KtmScanPageState extends State<KtmScanPage> {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: Colors.white.withOpacity(0.3)),
                     ),
-                    child: _isScanning
+                    child: _isScanning || isFinalLoading
                         ? const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -189,7 +207,7 @@ class _KtmScanPageState extends State<KtmScanPage> {
                           CircularProgressIndicator(color: Colors.white),
                           SizedBox(height: 16),
                           Text(
-                            'Memindai KTM...',
+                            'Memproses data...',
                             style: TextStyle(color: Colors.white),
                           ),
                         ],
@@ -200,24 +218,17 @@ class _KtmScanPageState extends State<KtmScanPage> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.badge_rounded,
-                              size: 80, color: Colors.white),
+                          const Icon(Icons.badge_rounded, size: 80, color: Colors.white),
                           const SizedBox(height: 8),
                           const Text(
-                            'KTM Terverifikasi',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
+                            'KTM Terdeteksi',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
-                          if (_barcodeData != null)
-                            Text(
-                              'Barcode: $_barcodeData',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 10,
-                              ),
-                            ),
+                          Text(
+                            'Barcode: $_barcodeData',
+                            style: const TextStyle(color: Colors.white70, fontSize: 10),
+                          ),
                         ],
                       ),
                     )
@@ -225,8 +236,7 @@ class _KtmScanPageState extends State<KtmScanPage> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.badge_outlined,
-                              size: 80, color: Colors.white),
+                          Icon(Icons.badge_outlined, size: 80, color: Colors.white),
                           SizedBox(height: 8),
                           Text(
                             'Siap memindai KTM',
@@ -234,33 +244,6 @@ class _KtmScanPageState extends State<KtmScanPage> {
                           ),
                         ],
                       ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Instructions
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.info_rounded,
-                            color: Colors.white, size: 16),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Pastikan KTM dalam kondisi baik dan barcode terbaca jelas',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.almarai(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
 
@@ -276,16 +259,11 @@ class _KtmScanPageState extends State<KtmScanPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: kPrimaryGreen,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                         child: Text(
-                          'SCAN KTM',
-                          style: GoogleFonts.almarai(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          'AMBIL FOTO KTM',
+                          style: GoogleFonts.almarai(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
@@ -293,85 +271,51 @@ class _KtmScanPageState extends State<KtmScanPage> {
                   if (_isSuccess)
                     Column(
                       children: [
-                        const Icon(Icons.check_circle_rounded,
-                            color: Colors.white, size: 50),
+                        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 50),
                         const SizedBox(height: 16),
                         Text(
-                          'Scan KTM Berhasil!',
+                          'KTM Siap Diverifikasi',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.almarai(
-                            fontSize: 18,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: GoogleFonts.almarai(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(height: 8),
-                        if (_barcodeData != null)
-                          Text(
-                            'Data Barcode: $_barcodeData',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                          ),
                         const SizedBox(height: 24),
                         Row(
                           children: [
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: _retryScan,
+                                onPressed: isFinalLoading ? null : _retryScan,
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: Colors.white,
                                   side: const BorderSide(color: Colors.white),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  padding:
-                                  const EdgeInsets.symmetric(vertical: 15),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(vertical: 15),
                                 ),
-                                child: Text(
-                                  'ULANGI',
-                                  style: GoogleFonts.almarai(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                child: const Text('ULANGI'),
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: ElevatedButton(
-                                onPressed: () {
-                                  if (_imageUrl != null && _barcodeData != null) {
-                                    Navigator.pop(context, {
-                                      'imageUrl': _imageUrl,
-                                      'barcodeData': _barcodeData,
-                                    });
-                                  }
-                                },
+                                onPressed: isFinalLoading ? null : _finishSignup,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
                                   foregroundColor: kPrimaryGreen,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  padding:
-                                  const EdgeInsets.symmetric(vertical: 15),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(vertical: 15),
                                 ),
-                                child: Text(
-                                  'SIMPAN',
-                                  style: GoogleFonts.almarai(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                child: isFinalLoading
+                                    ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: kPrimaryGreen)
+                                )
+                                    : const Text('SIMPAN & DAFTAR'),
                               ),
                             ),
                           ],
                         ),
                       ],
                     ),
-
                   const Spacer(flex: 2),
                 ],
               ),

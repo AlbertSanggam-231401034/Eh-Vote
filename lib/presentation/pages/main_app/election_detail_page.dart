@@ -383,7 +383,7 @@ class _ElectionDetailPageState extends State<ElectionDetailPage> with SingleTick
             ...sortedStambuk.map((stambuk) {
               final count = stambukCounts[stambuk]!;
               final percentage = totalVotes == 0 ? 0.0 : (count / totalVotes);
-              return _buildBarChartItem("Angkatan 20$stambuk", count, percentage, Colors.blueAccent);
+              return _buildBarChartItem("Angkatan $stambuk", count, percentage, Colors.blueAccent);
             }).toList(),
           ],
         );
