@@ -23,6 +23,7 @@ import 'package:suara_kita/presentation/pages/splash/splash_page.dart';
 import 'package:suara_kita/presentation/pages/auth/welcome_page.dart';
 import 'package:suara_kita/presentation/pages/auth/login_page.dart';
 import 'package:suara_kita/presentation/pages/auth/admin_login_page.dart';
+import 'package:suara_kita/presentation/pages/auth/forgot_password_page.dart'; // ✅ Import Forgot Password
 
 // Signup Flow
 import 'package:suara_kita/presentation/pages/auth/signup/user_signup_data_page.dart';
@@ -92,6 +93,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginPage(),
         '/admin-login': (context) => const AdminLoginPage(),
         '/signup': (context) => const UserSignupDataPage(),
+        '/forgot-password': (context) => const ForgotPasswordPage(), // ✅ Route Terdaftar
 
         // Signup Flow
         '/signup-face': (context) => const SignupFacePage(),
@@ -123,19 +125,18 @@ class MyApp extends StatelessWidget {
             }
 
             // 2. Jika Hot Restart (Fallback ke Data Testing Supabase Kamu)
-            // ✅ FIX: Menggunakan Link Supabase Asli agar Face Verify tidak Error
             return MaterialPageRoute(
               builder: (context) => HomePage(
                 currentUser: User(
                   nim: '231401034',
                   fullName: 'Albert Sanggam Nalom Sinurat',
-                  role: UserRole.voter, // Tetap voter agar bisa tes voting
-                  hasVoted: false, // Set false untuk tes, true untuk tes UI sudah vote
+                  role: UserRole.voter,
+                  hasVoted: false,
                   faceEmbedding: [],
                   faculty: 'Fakultas Ilmu Komputer dan Teknologi Informasi (Fasilkom-TI)',
                   major: 'Ilmu Komputer',
 
-                  // 👇 URL INI PENTING UNTUK FACE RECOGNITION
+                  // 👇 URL Supabase Asli (Penting untuk Face Verify Testing)
                   faceImageUrl: 'https://bygrusoabptiyhmqayqx.supabase.co/storage/v1/object/public/face-images/face_231401034_1765966990620.jpg',
                   ktmImageUrl: 'https://bygrusoabptiyhmqayqx.supabase.co/storage/v1/object/public/ktm-images/ktm_231401034_1765967001846.jpg',
 

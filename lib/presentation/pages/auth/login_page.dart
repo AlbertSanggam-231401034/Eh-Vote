@@ -371,10 +371,21 @@ class __LoginFormState extends State<_LoginForm> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // ✅ FIX: Tombol Lupa Password sudah aktif
           TextButton(
-            onPressed: () {},
-            child: Text('Lupa Password?',
-                style: GoogleFonts.almarai(color: Colors.white, fontSize: 14)),
+            onPressed: () {
+              Navigator.pushNamed(context, '/forgot-password');
+            },
+            child: Text(
+              'Lupa Password?',
+              style: GoogleFonts.almarai(
+                color: Colors.white,
+                fontSize: 14,
+                decoration: TextDecoration.underline,
+                decorationColor: Colors.white,
+              ),
+            ),
           ),
         ],
       ),
