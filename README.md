@@ -1,4 +1,4 @@
-# 🗳️ Eh‑Vote
+<img width="289" height="627" alt="image" src="https://github.com/user-attachments/assets/bdef1340-3808-46ea-9318-b939c81efdf8" /># 🗳️ Eh‑Vote
 
 > **A modern electronic voting (E‑Vote) mobile application built with Flutter**
 
@@ -65,7 +65,8 @@ Aplikasi ini bersifat modular sehingga mudah dikembangkan dan disesuaikan dengan
 
 | Home                   | Voting                 | Result                 |
 | ---------------------- | ---------------------- | ---------------------- |
-| *Tambahkan screenshot* | *Tambahkan screenshot* | *Tambahkan screenshot* |
+| <img width="289" height="627" alt="image" src="https://github.com/user-attachments/assets/68cedad3-def0-4b3f-910a-b7cb15ba50fd" />
+| *Tambahkan screenshot* | *Tambahkan screenshot* |
 
 ---
 
