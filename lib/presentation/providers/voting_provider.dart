@@ -17,7 +17,11 @@ import 'package:suara_kita/services/ktm_scanner_service.dart';
 class VotingProvider extends ChangeNotifier {
   // === VOTING FLOW CONSTANTS ===
   static const int TOTAL_STEPS = 6;
-  static const double FACE_SIMILARITY_THRESHOLD = 0.6;
+
+  // ✅ UPDATED: Threshold Euclidean (0.75).
+  // Jarak <= 0.75 berarti Cocok. Jarak > 0.75 berarti Beda Orang.
+  static const double FACE_DISTANCE_THRESHOLD = 0.75;
+
   static const int MAX_RETRY_ATTEMPTS = 3;
   static const Duration SESSION_TIMEOUT = Duration(minutes: 15);
 
@@ -42,7 +46,7 @@ class VotingProvider extends ChangeNotifier {
 
   // === VERIFICATION ===
   File? _liveFaceImage;
-  double? _faceSimilarityScore;
+  double? _faceSimilarityScore; // Sekarang isinya Jarak (Distance)
   bool _isFaceVerified = false;
   String? _scannedKtmData;
   bool _isKtmVerified = false;
@@ -50,7 +54,7 @@ class VotingProvider extends ChangeNotifier {
 
   // === SELECTION & RECORD ===
   CandidateModel? _selectedCandidate;
-  VoteRecord? _voteRecord; // ✅ Variable Private
+  VoteRecord? _voteRecord;
   Map<String, dynamic> _deviceInfo = {};
 
   // === GETTERS ===
@@ -65,7 +69,7 @@ class VotingProvider extends ChangeNotifier {
   bool get isKtmVerified => _isKtmVerified;
   bool get agreementAccepted => _agreementAccepted;
   CandidateModel? get selectedCandidate => _selectedCandidate;
-  VoteRecord? get voteRecord => _voteRecord; // ✅ Public Getter
+  VoteRecord? get voteRecord => _voteRecord;
 
   // === ELECTION SETUP ===
   Future<void> setElection(ElectionModel election, String userNim) async {
@@ -117,14 +121,14 @@ class VotingProvider extends ChangeNotifier {
     }
   }
 
-  // === FACE VERIFICATION (REAL LOGIC) ===
+  // === FACE VERIFICATION (REAL EUCLIDEAN LOGIC) ===
   Future<bool> verifyFace(File liveFaceImage) async {
     try {
       _isLoading = true;
       _errorMessage = null;
       notifyListeners();
 
-      print("DEBUG: Memulai proses verifikasi wajah...");
+      print("DEBUG: Memulai verifikasi wajah (EUCLIDEAN)...");
 
       if (_storedFaceImageUrl == null || _storedFaceImageUrl!.isEmpty) {
         throw Exception("Data foto wajah Anda tidak ditemukan di sistem database.");
@@ -154,26 +158,29 @@ class VotingProvider extends ChangeNotifier {
         throw Exception("Wajah tidak terdeteksi jelas pada kamera.");
       }
 
-      final similarity = await faceService.verifyFace(
+      // Hitung Jarak (Distance)
+      final distance = await faceService.verifyFace(
         liveFaceImage: liveFaceImage,
         storedEmbedding: _referenceFaceEmbedding!,
       );
 
-      _faceSimilarityScore = similarity;
-      print("DEBUG: Similarity Score: $similarity");
+      _faceSimilarityScore = distance;
+      print("DEBUG: Jarak Wajah: $distance (Batas Aman: $FACE_DISTANCE_THRESHOLD)");
 
-      if (similarity >= FACE_SIMILARITY_THRESHOLD) {
+      // ✅ UPDATED LOGIC: Jika Jarak LEBIH KECIL dari Threshold -> COCOK
+      if (distance <= FACE_DISTANCE_THRESHOLD) {
         _liveFaceImage = liveFaceImage;
         _isFaceVerified = true;
         _faceRetryCount = 0;
+        print("DEBUG: Verifikasi BERHASIL (Wajah Cocok)");
 
         _isLoading = false;
         notifyListeners();
         return true;
       } else {
         _faceRetryCount++;
-        final percent = (similarity * 100).toStringAsFixed(1);
-        throw Exception("Wajah tidak cocok ($percent%). Silakan coba lagi.");
+        final distStr = distance.toStringAsFixed(2);
+        throw Exception("Wajah tidak cocok (Skor Jarak: $distStr). Pastikan wajah terlihat jelas.");
       }
 
     } catch (e) {
@@ -297,7 +304,6 @@ class VotingProvider extends ChangeNotifier {
 
       final voteId = '${_selectedElection!.id}-${_voterNim}-${DateTime.now().millisecondsSinceEpoch}';
 
-      // ✅ Isi variable private _voteRecord
       _voteRecord = VoteRecord(
         voteId: voteId,
         electionId: _selectedElection!.id,
@@ -370,7 +376,7 @@ class VotingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ✅ NAVIGATION CONTROLS
+  // NAVIGATION CONTROLS
   void nextStep() {
     if (_currentStep < TOTAL_STEPS - 1) {
       _currentStep++;

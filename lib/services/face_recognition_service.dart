@@ -31,11 +31,13 @@ class FaceRecognitionService {
   // === CONSTANTS ===
   static const String _modelPath = 'assets/models/mobilefacenet.tflite';
   static const int _inputSize = 112;
-  static const double _threshold = 0.6;
+
+  // ✅ UPDATED: Threshold untuk Euclidean Distance (Makin kecil makin ketat)
+  // 0.6 - 0.8 adalah range standar. 0.75 cukup aman.
+  static const double _threshold = 0.75;
 
   // === PUBLIC METHODS ===
 
-  // Initialize TFLite model
   Future<void> initialize() async {
     try {
       print('🔄 Loading TensorFlow Lite model...');
@@ -50,7 +52,6 @@ class FaceRecognitionService {
 
   bool isModelLoaded() => _isModelLoaded;
 
-  // Capture face from camera
   Future<File?> captureFaceImage() async {
     try {
       final XFile? image = await _imagePicker.pickImage(
@@ -73,7 +74,6 @@ class FaceRecognitionService {
     }
   }
 
-  // Pick face from gallery
   Future<File?> pickFaceImage() async {
     try {
       final XFile? image = await _imagePicker.pickImage(
@@ -95,25 +95,20 @@ class FaceRecognitionService {
     }
   }
 
-  // Extract face embedding (feature vector)
+  // Extract Embedding (Tetap sama)
   Future<List<double>?> extractFaceEmbedding(File faceImage) async {
     try {
       if (!_isModelLoaded) await initialize();
 
-      // Preprocess image -> Return List 4D [1, 112, 112, 3]
       final inputData = await _preprocessImage(faceImage);
       if (inputData == null) {
         print('❌ Failed to preprocess image');
         return null;
       }
 
-      // Output buffer: [1, 192]
       var outputBuffer = List.filled(1 * 192, 0.0).reshape([1, 192]);
-
-      // Run inference
       _interpreter!.run(inputData, outputBuffer);
 
-      // Flatten output
       List<double> embedding = List<double>.from(outputBuffer[0]);
       return _normalizeVector(embedding);
 
@@ -123,51 +118,37 @@ class FaceRecognitionService {
     }
   }
 
-  // Extract embedding without validation (for testing)
-  Future<List<double>?> extractEmbeddingDirect(File imageFile) async {
-    try {
-      if (!_isModelLoaded) await initialize();
-
-      // Gunakan _preprocessImage yang sama (sudah diperbaiki)
-      final inputData = await _preprocessImage(imageFile);
-      if (inputData == null) return null;
-
-      var outputBuffer = List.filled(1 * 192, 0.0).reshape([1, 192]);
-      _interpreter!.run(inputData, outputBuffer);
-
-      List<double> embedding = List<double>.from(outputBuffer[0]);
-      return _normalizeVector(embedding);
-    } catch (e) {
-      print('❌ Direct extraction error: $e');
-      return null;
-    }
-  }
-
-  // Verify Face
+  // ✅ UPDATED: Menggunakan Euclidean Distance
   Future<double> verifyFace({
     required File liveFaceImage,
     required List<double> storedEmbedding,
   }) async {
     try {
       final liveEmbedding = await extractFaceEmbedding(liveFaceImage);
-      if (liveEmbedding == null) return 0.0;
-      return _cosineSimilarity(liveEmbedding, storedEmbedding);
+      if (liveEmbedding == null) return 10.0; // Return jarak jauh jika gagal
+
+      // Gunakan Euclidean Distance
+      final distance = _euclideanDistance(liveEmbedding, storedEmbedding);
+      print('🔍 Euclidean Distance: ${distance.toStringAsFixed(4)}');
+
+      return distance;
     } catch (e) {
       print('❌ Error in face verification: $e');
-      return 0.0;
+      return 10.0;
     }
   }
 
-  // Check if face is verified based on threshold
+  // ✅ UPDATED: Check Logic (Distance <= Threshold)
   Future<bool> isFaceVerified({
     required File liveFaceImage,
     required List<double> storedEmbedding,
   }) async {
-    final similarity = await verifyFace(
+    final distance = await verifyFace(
       liveFaceImage: liveFaceImage,
       storedEmbedding: storedEmbedding,
     );
-    return similarity >= _threshold;
+    // Jika jarak LEBIH KECIL atau SAMA DENGAN threshold, berarti COCOK
+    return distance <= _threshold;
   }
 
   // Helper Conversion Methods
@@ -261,7 +242,7 @@ class FaceRecognitionService {
     }
   }
 
-  // ✅ PREPROCESS IMAGE FIX (4D ARRAY)
+// ✅ UPDATE V3: TIGHT CROP (FOKUS WAJAH, BUANG BADAN)
   Future<List<dynamic>?> _preprocessImage(File imageFile) async {
     try {
       final imageBytes = await imageFile.readAsBytes();
@@ -276,28 +257,53 @@ class FaceRecognitionService {
         return null;
       }
 
-      final faceRect = faces.first.boundingBox;
+      final face = faces.first;
+      final faceRect = face.boundingBox;
 
-      final x = faceRect.left.clamp(0, originalImage.width - 1).toInt();
-      final y = faceRect.top.clamp(0, originalImage.height - 1).toInt();
-      final width = faceRect.width.clamp(1, originalImage.width - x).toInt();
-      final height = faceRect.height.clamp(1, originalImage.height - y).toInt();
+      // --- LOGIC TIGHT CROP (Potong Ketat) ---
 
+      // 1. Gunakan LEBAR wajah sebagai patokan ukuran persegi.
+      // Kenapa? Karena tinggi (height) seringkali bablas sampai leher/dada.
+      // Lebar (width) biasanya pas dari telinga ke telinga.
+      // Kita tambah sedikit padding (20%) biar dagu/jidat gak kepotong ekstrim.
+      int size = (faceRect.width * 1.2).toInt();
+
+      // 2. Cari titik tengah wajah (Center Point)
+      int centerX = faceRect.left.toInt() + (faceRect.width.toInt() ~/ 2);
+
+      // 3. Geser titik tengah Y sedikit ke ATAS.
+      // ML Kit sering mendeteksi kotak wajah agak turun ke bawah.
+      // Kita naikkan 10% biar leher/baju makin terbuang.
+      int centerY = (faceRect.top.toInt() + (faceRect.height.toInt() ~/ 2)) - (faceRect.height * 0.1).toInt();
+
+      // 4. Hitung koordinat potong (Top-Left X, Y)
+      int x = centerX - (size ~/ 2);
+      int y = centerY - (size ~/ 2);
+
+      // 5. Handling Boundary (Jangan sampai keluar batas gambar)
+      // Kalau keluar batas, kita geser atau potong seadanya, tapi tetap pertahankan Aspect Ratio persegi
+      if (x < 0) x = 0;
+      if (y < 0) y = 0;
+      if (x + size > originalImage.width) size = originalImage.width - x;
+      if (y + size > originalImage.height) size = originalImage.height - y;
+
+      // 6. Lakukan Cropping
       final croppedImage = img.copyCrop(
         originalImage,
         x: x,
         y: y,
-        width: width,
-        height: height,
+        width: size,
+        height: size,
       );
 
+      // 7. Resize ke 112x112
       final resizedImage = img.copyResize(
         croppedImage,
         width: _inputSize,
         height: _inputSize,
       );
 
-      // Create 4D array [1, 112, 112, 3]
+      // --- KONVERSI KE 4D ARRAY (Sama seperti sebelumnya) ---
       var inputBuffer = List.generate(
           1,
               (i) => List.generate(
@@ -306,11 +312,11 @@ class FaceRecognitionService {
                   _inputSize,
                       (x) {
                     final pixel = resizedImage.getPixel(x, y);
-                    // Normalize (value - 128) / 128
+                    // Normalisasi standar
                     return [
-                      (pixel.r - 128) / 128,
-                      (pixel.g - 128) / 128,
-                      (pixel.b - 128) / 128
+                      (pixel.r - 127.5) / 127.5,
+                      (pixel.g - 127.5) / 127.5,
+                      (pixel.b - 127.5) / 127.5
                     ];
                   }
               )
@@ -332,20 +338,17 @@ class FaceRecognitionService {
     return vector.map((value) => value / norm).toList();
   }
 
-  double _cosineSimilarity(List<double> a, List<double> b) {
-    if (a.length != b.length) return 0.0;
-    double dotProduct = 0.0;
-    double normA = 0.0;
-    double normB = 0.0;
+  // ✅ UPDATED: Rumus Euclidean Distance
+  double _euclideanDistance(List<double> a, List<double> b) {
+    if (a.length != b.length) return 10.0; // Error value
+
+    double sum = 0.0;
     for (int i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+      final diff = a[i] - b[i];
+      sum += diff * diff;
     }
-    normA = sqrt(normA);
-    normB = sqrt(normB);
-    if (normA == 0 || normB == 0) return 0.0;
-    return dotProduct / (normA * normB);
+
+    return sqrt(sum);
   }
 
   void dispose() {
