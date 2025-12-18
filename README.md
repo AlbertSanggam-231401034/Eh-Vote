@@ -156,6 +156,10 @@ Kontribusi sangat terbuka:
 4. Push ke GitHub
 5. Ajukan Pull Request
 
+
+
+https://drive.google.com/file/d/1stUPh-TPaQaKIULqGJcfts6KBv3tY393/view?usp=sharing
+
 ---
 
 ## 📄 Lisensi
