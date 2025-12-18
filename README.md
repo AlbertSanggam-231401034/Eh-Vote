@@ -66,7 +66,9 @@ Aplikasi ini bersifat modular sehingga mudah dikembangkan dan disesuaikan dengan
 | Home                   | Voting                 | Result                 |
 | ---------------------- | ---------------------- | ---------------------- |
 | <img width="289" height="627" alt="image" src="https://github.com/user-attachments/assets/68cedad3-def0-4b3f-910a-b7cb15ba50fd" />
-| *Tambahkan screenshot* | *Tambahkan screenshot* |
+| <img width="309" height="670" alt="image" src="https://github.com/user-attachments/assets/f786c0de-6473-49c8-8abd-b626eb4df2b4" />
+ | <img width="292" height="635" alt="image" src="https://github.com/user-attachments/assets/3b8e1622-e0a3-4956-9b43-d3b9144cb18c" />
+ |
 
 ---
 
