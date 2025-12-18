@@ -12,11 +12,14 @@
 
 ---
 
-👥 Anggota Kelompok
-No	Nama	NIM
-1	Albert Sanggam Nalom Sinurat	231401034
-2	Abrar Naufal Fadhillah Cut	231401130	
-3	Alfaridzi Farrel Akbar	231401028	
+## 👥 Anggota Kelompok
+
+| No | Nama                            | NIM        |
+|----|---------------------------------|------------|
+| 1  | Albert Sanggam Nalom Sinurat     | 231401034  |
+| 2  | Abrar Naufal Fadhillah Cut       | 231401130  |
+| 3  | Alfaridzi Farrel Akbar           | 231401028  |
+
 
 ## 📌 Daftar Isi
 
