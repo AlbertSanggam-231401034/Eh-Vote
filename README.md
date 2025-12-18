@@ -5,6 +5,7 @@
 ![Flutter](https://img.shields.io/badge/Flutter-3.38.1%2B-02569B?logo=flutter\&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-3.10.0%2B-0175C2?logo=dart\&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
+![supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 
 **Eh‑Vote** adalah aplikasi voting elektronik berbasis **Flutter** yang dirancang untuk kebutuhan pemilihan digital seperti pemilihan ketua organisasi, OSIS, komunitas, maupun voting internal skala kecil. Aplikasi ini fokus pada kemudahan penggunaan, keamanan, dan fleksibilitas pengembangan.
 
